@@ -1,0 +1,7 @@
+{
+  "name": "NovaDrama - Futuristic C-Drama Platform",
+  "description": "A high-end, modern futuristic streaming platform for Chinese dramas featuring glassmorphism, neon accents, and AI-powered recommendations. Includes a robust VIP system and admin controls.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
