@@ -7,14 +7,15 @@ import { Drama } from '../types';
 const API_URL = 'https://zeldvorik.ru/rebahin21/api.php';
 
 // List of CORS proxies (Priority based on stability for video streaming)
+// Kita menggunakan beberapa proxy berbeda untuk memastikan data bisa diambil
 const PROXIES = [
-  'https://api.allorigins.win/raw?url=', // Good for JSON
-  'https://corsproxy.io/?',              // Good for raw data
+  'https://api.allorigins.win/raw?url=', 
+  'https://corsproxy.io/?',              
   'https://thingproxy.freeboard.io/fetch/',
-  '' // Direct fetch (rarely works for cross-origin but worth a try)
+  '' // Direct fetch sebagai cadangan terakhir
 ];
 
-// MOCK DATA: Used when API completely fails (Network Dead / CORS hard block)
+// MOCK DATA: Digunakan jika API mati total atau kena blokir internet positif/CORS keras
 const FALLBACK_DATA: Drama[] = [
   { id: 'f1', title: 'Cyberpunk Edgerunners', thumbnail: 'https://picsum.photos/seed/cyber/800/1200', description: 'Di tengah distopia masa depan, seorang remaja jalanan berjuang bertahan hidup sebagai tentara bayaran edgerunner.', rating: 9.8, source: 'Rebahin21', genre: ['Anime', 'Sci-Fi'], releaseYear: 2022, status: 'Completed', episodes: 10 },
   { id: 'f2', title: 'Neon Dynasty', thumbnail: 'https://picsum.photos/seed/neon/800/1200', description: 'Perebutan kekuasaan dinasti di kota terapung masa depan.', rating: 9.2, source: 'Rebahin21', genre: ['Cyberpunk'], releaseYear: 2077, status: 'Ongoing', episodes: 50 },
@@ -23,7 +24,7 @@ const FALLBACK_DATA: Drama[] = [
 ];
 
 /**
- * Helper: Detect if string is a URL
+ * Helper: Validasi string apakah URL valid
  */
 const isValidUrl = (urlString: string) => {
     try { 
@@ -35,7 +36,7 @@ const isValidUrl = (urlString: string) => {
 }
 
 /**
- * Normalisasi data Rebahin21.
+ * Normalisasi data dari format API Rebahin ke format aplikasi kita.
  */
 const mapToDrama = (item: any): Drama => {
   const title = 
@@ -74,7 +75,8 @@ const mapToDrama = (item: any): Drama => {
 };
 
 /**
- * Pengambil data dengan strategi multi-proxy & Timeout.
+ * Pengambil data aman dengan rotasi Proxy.
+ * Mencoba beberapa jalur jika satu jalur diblokir.
  */
 const secureFetch = async (query: string) => {
   const timestamp = new Date().getTime();
@@ -82,10 +84,10 @@ const secureFetch = async (query: string) => {
 
   for (const proxyBase of PROXIES) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 detik timeout
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 detik timeout per proxy
 
     try {
-      // Encode URL is crucial for proxies
+      // Encode URL sangat penting agar proxy bisa membacanya
       const fetchUrl = proxyBase ? `${proxyBase}${encodeURIComponent(targetUrl)}` : targetUrl;
       
       const response = await fetch(fetchUrl, { signal: controller.signal });
@@ -97,14 +99,13 @@ const secureFetch = async (query: string) => {
       try {
         const json = JSON.parse(text);
         
-        // Handle AllOrigins specific wrapper
+        // Handle wrapper khusus AllOrigins
         if (proxyBase.includes('allorigins') && json.contents) {
            try { return JSON.parse(json.contents); } catch { return json.contents; }
         }
         return json;
       } catch (e) {
-        // If JSON parse fails, but we got text, maybe it's raw HTML (for embeds)?
-        // For now, treat as failure and try next proxy
+        // Jika gagal parse JSON, lanjut ke proxy berikutnya
         console.warn(`JSON Parse failed for ${fetchUrl}`);
         continue;
       }
@@ -160,6 +161,7 @@ export const fetchRankings = async (): Promise<Drama[]> => {
 
 export const fetchDramaById = async (id: string): Promise<Drama | undefined> => {
   try {
+    // Cek ID Fallback dulu (f1, f2, dst) agar demo selalu jalan
     const local = FALLBACK_DATA.find(d => d.id === id);
     if (local) return local;
 
@@ -180,8 +182,9 @@ export const fetchDramaById = async (id: string): Promise<Drama | undefined> => 
  */
 export const getVideoStream = async (id: string, index: number = 1): Promise<string | null> => {
   // 1. Cek Mock Data dulu (Untuk testing user experience tanpa backend nyata)
+  // Ini PENTING agar demo "Cyberpunk" dll bisa diputar
   if (id.startsWith('f')) {
-      // Return a sample Big Buck Bunny / Tech demo stream for fallback items
+      // Gunakan sample video Big Buck Bunny yang stabil
       return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
   }
 
@@ -191,13 +194,15 @@ export const getVideoStream = async (id: string, index: number = 1): Promise<str
     if (!json) return null;
 
     // Prioritas pengambilan link video
+    // Kita cari berbagai key yang mungkin dikembalikan API
     const link = 
         json.url || 
         json.stream || 
         json.data?.url || 
         json.embed || 
         json.iframe ||
-        json.link;
+        json.link ||
+        json.source;
     
     if (link && isValidUrl(link)) {
         return link;

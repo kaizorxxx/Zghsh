@@ -13,19 +13,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   const [error, setError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Helper: Check if URL looks like an MP4/Direct stream or an Embed/HLS
+  // Helper: Cek apakah URL terlihat seperti file video langsung atau Embed
   const isDirectStream = (url: string) => {
-      return url.includes('.mp4') || url.includes('.mkv') || url.includes('.webm');
+      return url.match(/\.(mp4|mkv|webm|ogg)$/i) !== null;
   };
 
   useEffect(() => {
-    // Reset state when stream changes
+    // Reset state saat episode/url berubah
     setIsPlaying(false);
     setError(false);
   }, [streamUrl]);
 
   useEffect(() => {
-    // Auto-play logic if stream is available and user already clicked play previously
+    // Logic Auto-play jika stream tersedia dan user sudah klik play sebelumnya
     if (streamUrl && isPlaying && videoRef.current && !error) {
         videoRef.current.load();
         videoRef.current.play().catch(e => {
@@ -35,30 +35,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   }, [streamUrl, isPlaying, error]);
 
   const handleVideoError = () => {
-      console.warn("Video tag failed to load (CORS or Format). Switching/Showing Error.");
-      // Jika video tag gagal (mungkin karena CORS di direct link), kita bisa set Error state
-      // Tapi jika ini adalah embed, UI iframe akan otomatis dirender di bawah
+      console.warn("Video tag failed to load (CORS or Format). Switching to Embed/Iframe mode.");
+      // Jika <video> tag gagal (layar hitam/error), kita ubah ke mode Error
+      // Mode error akan memicu penggunaan Iframe jika URL memungkinkan
       setError(true);
   };
 
-  // Determine if we should render an Iframe or a Video Tag
+  // Logic untuk memilih render Iframe atau Video Tag
   const renderPlayer = () => {
       if (!streamUrl) return null;
 
-      // Jika URL tidak terlihat seperti file video langsung, ATAU jika video tag error sebelumnya
-      // Kita asumsikan ini adalah Embed Link (Iframe)
+      // Gunakan Iframe JIKA:
+      // 1. URL tidak berakhiran .mp4/.mkv (kemungkinan besar link embed website lain)
+      // 2. ATAU Video tag error (kena blokir CORS)
       const useIframe = !isDirectStream(streamUrl) || error;
 
       if (useIframe) {
           return (
               <iframe 
                   src={streamUrl} 
-                  className="w-full h-full border-0"
+                  className="w-full h-full border-0 bg-black"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                   allowFullScreen
                   title="Stream Content"
-                  // Iframe tidak memiliki event 'ended' yang bisa diakses karena cross-origin
-                  // Jadi fitur auto-next mungkin tidak jalan untuk Iframe embed
+                  // Iframe dari domain lain tidak bisa kirim event 'ended', jadi auto-next tidak jalan di mode ini
               />
           );
       }
@@ -69,14 +69,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
             className="w-full h-full object-contain"
             controls
             autoPlay
+            playsInline
             src={streamUrl}
             poster={poster}
             onEnded={onEnded}
             onError={handleVideoError}
-            crossOrigin="anonymous" // Coba request dengan CORS header
+            crossOrigin="anonymous" // Mencoba meminta izin CORS
         >
             <source src={streamUrl} type="video/mp4" />
-            Your browser does not support the video tag.
+            Browser Anda tidak mendukung tag video atau format ini.
         </video>
       );
   };
@@ -84,7 +85,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   return (
     <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden bg-black border border-zinc-800 shadow-[0_0_100px_rgba(0,0,0,0.9)] group">
       
-      {/* Overlay: Auto-play countdown, Next Ep, etc */}
+      {/* Overlay: Auto-play countdown, Next Ep, dll */}
       {overlay && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center animate-fadeInUp">
           {overlay}
@@ -121,16 +122,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
             ) : (
                 <div className="w-full h-full relative animate-[fadeIn_0.4s_ease-out]">
                     
-                    {/* Render Hybrid Player (Iframe or Video) */}
+                    {/* Render Hybrid Player (Iframe atau Video Tag) */}
                     {renderPlayer()}
 
                     <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.03)_50%)] bg-[length:100%_4px] opacity-10"></div>
                     
-                    {/* Watermark */}
+                    {/* Watermark Status Mode */}
                     <div className="absolute top-8 right-8 z-30 flex items-center gap-3 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-full border border-white/5 opacity-60 pointer-events-none">
-                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red]"></div>
+                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px] ${error ? 'bg-yellow-500 shadow-yellow-500' : 'bg-red-600 shadow-red-600'}`}></div>
                         <span className="text-[9px] font-black text-white/90 uppercase tracking-[0.2em] italic">
-                             {error ? 'EMBED_MODE' : 'DIRECT_FEED'}
+                             {error || !isDirectStream(streamUrl) ? 'EMBED_PROTOCOL' : 'DIRECT_FEED'}
                         </span>
                     </div>
                 </div>
