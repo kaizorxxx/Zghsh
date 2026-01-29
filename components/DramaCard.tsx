@@ -11,7 +11,8 @@ const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   return (
-    <Link to={`/drama/${drama.id}`} className="group block mb-2">
+    // Mengirim object drama melalui state agar halaman detail tidak perlu fetch ulang
+    <Link to={`/drama/${drama.id}`} state={{ drama }} className="group block mb-2">
       <div className="relative aspect-[12/17] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 group-hover:border-red-600 transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(225,29,72,0.3)] group-hover:-translate-y-2">
         {/* Placeholder/Loading shimmer */}
         {!imageLoaded && (
