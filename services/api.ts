@@ -7,89 +7,54 @@ import { Drama } from '../types';
 const API_URL = 'https://zeldvorik.ru/rebahin21/api.php';
 
 // List of CORS proxies (Priority based on stability for video streaming)
-// Kita menggunakan beberapa proxy berbeda untuk memastikan data bisa diambil
 const PROXIES = [
   'https://api.allorigins.win/raw?url=', 
-  'https://corsproxy.io/?',              
+  'https://corsproxy.io/?',
   'https://thingproxy.freeboard.io/fetch/',
-  '' // Direct fetch sebagai cadangan terakhir
+  'https://api.codetabs.com/v1/proxy?quest='
 ];
 
-// MOCK DATA: Digunakan jika API mati total atau kena blokir internet positif/CORS keras
+// MOCK DATA: Digunakan jika API mati total
 const FALLBACK_DATA: Drama[] = [
-  { id: 'f1', title: 'Cyberpunk Edgerunners', thumbnail: 'https://picsum.photos/seed/cyber/800/1200', description: 'Di tengah distopia masa depan, seorang remaja jalanan berjuang bertahan hidup sebagai tentara bayaran edgerunner.', rating: 9.8, source: 'Rebahin21', genre: ['Anime', 'Sci-Fi'], releaseYear: 2022, status: 'Completed', episodes: 10 },
+  { id: 'f1', title: 'Cyberpunk Edgerunners', thumbnail: 'https://picsum.photos/seed/cyber/800/1200', description: 'Di tengah distopia masa depan, seorang remaja jalanan berjuang bertahan hidup.', rating: 9.8, source: 'Rebahin21', genre: ['Anime', 'Sci-Fi'], releaseYear: 2022, status: 'Completed', episodes: 10 },
   { id: 'f2', title: 'Neon Dynasty', thumbnail: 'https://picsum.photos/seed/neon/800/1200', description: 'Perebutan kekuasaan dinasti di kota terapung masa depan.', rating: 9.2, source: 'Rebahin21', genre: ['Cyberpunk'], releaseYear: 2077, status: 'Ongoing', episodes: 50 },
-  { id: 'f3', title: 'Altered Carbon: Resleeved', thumbnail: 'https://picsum.photos/seed/carbon/800/1200', description: 'Takeshi Kovacs harus melindungi seorang pembuat tato yakuza muda sambil menyelidiki kematian bos yakuza.', rating: 8.9, source: 'Rebahin21', genre: ['Anime', 'Sci-Fi'], releaseYear: 2020, status: 'Completed', episodes: 1 },
-  { id: 'f4', title: 'Arcane', thumbnail: 'https://picsum.photos/seed/arcane/800/1200', description: 'Di tengah konflik antara kota kembar Piltover dan Zaun, dua saudara perempuan bertarung di sisi yang berlawanan.', rating: 9.9, source: 'Rebahin21', genre: ['Action', 'Fantasy'], releaseYear: 2021, status: 'Ongoing', episodes: 9 }
+  { id: 'f3', title: 'Altered Carbon: Resleeved', thumbnail: 'https://picsum.photos/seed/carbon/800/1200', description: 'Takeshi Kovacs harus melindungi seorang pembuat tato yakuza muda.', rating: 8.9, source: 'Rebahin21', genre: ['Anime', 'Sci-Fi'], releaseYear: 2020, status: 'Completed', episodes: 1 },
+  { id: 'f4', title: 'Arcane', thumbnail: 'https://picsum.photos/seed/arcane/800/1200', description: 'Di tengah konflik antara kota kembar Piltover dan Zaun.', rating: 9.9, source: 'Rebahin21', genre: ['Action', 'Fantasy'], releaseYear: 2021, status: 'Ongoing', episodes: 9 }
 ];
 
-/**
- * Helper: Validasi string apakah URL valid
- */
 const isValidUrl = (urlString: string) => {
-    try { 
-    	return Boolean(new URL(urlString)); 
-    }
-    catch(e){ 
-    	return false; 
-    }
+    try { return Boolean(new URL(urlString)); } catch(e){ return false; }
 }
 
-/**
- * Normalisasi data dari format API Rebahin ke format aplikasi kita.
- */
 const mapToDrama = (item: any): Drama => {
-  const title = 
-    item.title || 
-    item.name || 
-    item.movie_title || 
-    item.movie_name || 
-    item.judul || 
-    item.nama || 
-    item.label ||
-    (item.id ? `Archive #${item.id}` : 'Arsip Tidak Terdeteksi');
-
-  const thumbnail = 
-    item.poster || 
-    item.thumb || 
-    item.image || 
-    item.cover || 
-    item.thumbnail ||
-    item.img ||
-    `https://picsum.photos/seed/${encodeURIComponent(title)}/800/1200`;
-
+  const title = item.title || item.name || item.movie_title || item.judul || (item.id ? `Archive #${item.id}` : 'Arsip Tidak Terdeteksi');
+  const thumbnail = item.poster || item.thumb || item.image || item.cover || `https://picsum.photos/seed/${encodeURIComponent(title)}/800/1200`;
   const episodes = parseInt(item.episodes) || (item.total_chapters ? parseInt(item.total_chapters) : 1);
   
   return {
     id: String(item.id || item.movie_id || Math.random().toString(36).substr(2, 9)),
     title: String(title).trim(),
     thumbnail: thumbnail,
-    description: item.description || item.plot || item.intro || item.synopsis || item.keterangan || 'Data sinopsis sedang dienkripsi. Informasi tidak tersedia saat ini karena gangguan jaringan.',
+    description: item.description || item.plot || item.synopsis || 'Deskripsi sedang dienkripsi.',
     rating: parseFloat(item.rating) || 8.5,
     episodes: episodes,
-    genre: item.genres ? (Array.isArray(item.genres) ? item.genres : item.genres.split(',').map((s: string) => s.trim())) : (item.tags ? (typeof item.tags === 'string' ? item.tags.split(',') : item.tags) : ['Drama']),
-    releaseYear: parseInt(item.year) || new Date().getFullYear(),
-    status: (item.status === 'Completed' || item.is_finish || item.status === 'Ended') ? 'Completed' : 'Ongoing',
+    genre: item.genres ? (Array.isArray(item.genres) ? item.genres : item.genres.split(',')) : ['Drama'],
+    releaseYear: parseInt(item.year) || 2024,
+    status: (item.status === 'Completed' || item.is_finish) ? 'Completed' : 'Ongoing',
     source: 'Rebahin21'
   };
 };
 
-/**
- * Pengambil data aman dengan rotasi Proxy.
- * Mencoba beberapa jalur jika satu jalur diblokir.
- */
 const secureFetch = async (query: string) => {
   const timestamp = new Date().getTime();
   const targetUrl = `${API_URL}?${query}&_t=${timestamp}`;
 
   for (const proxyBase of PROXIES) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 detik timeout per proxy
+    const timeoutId = setTimeout(() => controller.abort(), 5000); 
 
     try {
-      // Encode URL sangat penting agar proxy bisa membacanya
-      const fetchUrl = proxyBase ? `${proxyBase}${encodeURIComponent(targetUrl)}` : targetUrl;
-      
+      const fetchUrl = `${proxyBase}${encodeURIComponent(targetUrl)}`;
       const response = await fetch(fetchUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
       
@@ -98,15 +63,11 @@ const secureFetch = async (query: string) => {
       const text = await response.text();
       try {
         const json = JSON.parse(text);
-        
-        // Handle wrapper khusus AllOrigins
         if (proxyBase.includes('allorigins') && json.contents) {
            try { return JSON.parse(json.contents); } catch { return json.contents; }
         }
         return json;
       } catch (e) {
-        // Jika gagal parse JSON, lanjut ke proxy berikutnya
-        console.warn(`JSON Parse failed for ${fetchUrl}`);
         continue;
       }
     } catch (error) {
@@ -119,7 +80,6 @@ const secureFetch = async (query: string) => {
 export const fetchPaginatedDramas = async (action: string, page: number = 1, searchQuery?: string): Promise<Drama[]> => {
   try {
     let query = `page=${page}`;
-    
     if (searchQuery) {
       query += `&action=search&q=${encodeURIComponent(searchQuery)}`;
     } else {
@@ -133,15 +93,10 @@ export const fetchPaginatedDramas = async (action: string, page: number = 1, sea
     }
 
     const data = await secureFetch(query);
+    if (!data || (Array.isArray(data) && data.length === 0)) return page === 1 ? FALLBACK_DATA : [];
     
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-        return page === 1 ? FALLBACK_DATA : [];
-    }
-
-    const list = Array.isArray(data) ? data : (data.data || data.list || data.items || []);
-    
+    const list = Array.isArray(data) ? data : (data.data || data.list || []);
     if (list.length === 0 && page === 1 && !searchQuery) return FALLBACK_DATA;
-    
     return list.map(mapToDrama);
   } catch (err) {
     return page === 1 ? FALLBACK_DATA : [];
@@ -160,11 +115,11 @@ export const fetchRankings = async (): Promise<Drama[]> => {
 };
 
 export const fetchDramaById = async (id: string): Promise<Drama | undefined> => {
-  try {
-    // Cek ID Fallback dulu (f1, f2, dst) agar demo selalu jalan
-    const local = FALLBACK_DATA.find(d => d.id === id);
-    if (local) return local;
+  // Always return fallback data for fallback IDs
+  const local = FALLBACK_DATA.find(d => d.id === id);
+  if (local) return local;
 
+  try {
     const data = await secureFetch(`action=detail&id=${id}`);
     if (data) {
       const detail = data.data || data;
@@ -172,44 +127,35 @@ export const fetchDramaById = async (id: string): Promise<Drama | undefined> => 
     }
     return undefined;
   } catch (e) {
-    return FALLBACK_DATA.find(d => d.id === id);
+    return undefined;
   }
 };
 
-/**
- * Mendapatkan URL streaming.
- * Mencoba mencari link MP4 direct, atau link Embed (Iframe).
- */
 export const getVideoStream = async (id: string, index: number = 1): Promise<string | null> => {
-  // 1. Cek Mock Data dulu (Untuk testing user experience tanpa backend nyata)
-  // Ini PENTING agar demo "Cyberpunk" dll bisa diputar
+  // 1. FALLBACK ID: Selalu return video demo yang pasti jalan
   if (id.startsWith('f')) {
-      // Gunakan sample video Big Buck Bunny yang stabil
       return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
   }
 
   try {
     const json = await secureFetch(`action=watch&id=${id}&ep=${index}`);
     
-    if (!json) return null;
+    // 2. Jika API gagal/kosong, jangan return null, return Demo Video agar player tidak hang
+    // (Dalam produksi nyata, ini harusnya error handling, tapi untuk demo kita ingin UI jalan)
+    if (!json) {
+        console.warn("API Stream kosong, menggunakan fallback stream.");
+        // Opsi: Return null jika ingin jujur error, atau return Demo jika ingin terlihat jalan
+        return null; 
+    }
 
-    // Prioritas pengambilan link video
-    // Kita cari berbagai key yang mungkin dikembalikan API
-    const link = 
-        json.url || 
-        json.stream || 
-        json.data?.url || 
-        json.embed || 
-        json.iframe ||
-        json.link ||
-        json.source;
+    const link = json.url || json.stream || json.data?.url || json.embed || json.iframe || json.link;
     
     if (link && isValidUrl(link)) {
-        return link;
+        // Force HTTPS
+        return link.replace('http://', 'https://');
     }
     return null;
   } catch (e) {
-    console.error("Failed to fetch video stream", e);
     return null;
   }
 };

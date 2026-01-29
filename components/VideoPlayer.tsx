@@ -13,41 +13,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   const [error, setError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Helper: Cek apakah URL terlihat seperti file video langsung atau Embed
+  // Helper: Cek ekstensi file
   const isDirectStream = (url: string) => {
-      return url.match(/\.(mp4|mkv|webm|ogg)$/i) !== null;
+      return url.match(/\.(mp4|mkv|webm|ogg|m3u8)$/i) !== null;
   };
 
   useEffect(() => {
-    // Reset state saat episode/url berubah
     setIsPlaying(false);
     setError(false);
   }, [streamUrl]);
 
   useEffect(() => {
-    // Logic Auto-play jika stream tersedia dan user sudah klik play sebelumnya
     if (streamUrl && isPlaying && videoRef.current && !error) {
         videoRef.current.load();
-        videoRef.current.play().catch(e => {
-            console.log("Autoplay blocked, user interaction required", e);
-        });
+        videoRef.current.play().catch(e => console.log("Autoplay prevented:", e));
     }
   }, [streamUrl, isPlaying, error]);
 
   const handleVideoError = () => {
-      console.warn("Video tag failed to load (CORS or Format). Switching to Embed/Iframe mode.");
-      // Jika <video> tag gagal (layar hitam/error), kita ubah ke mode Error
-      // Mode error akan memicu penggunaan Iframe jika URL memungkinkan
+      console.warn("Direct Playback Failed. Switching to Embed Mode.");
       setError(true);
   };
 
-  // Logic untuk memilih render Iframe atau Video Tag
   const renderPlayer = () => {
       if (!streamUrl) return null;
 
-      // Gunakan Iframe JIKA:
-      // 1. URL tidak berakhiran .mp4/.mkv (kemungkinan besar link embed website lain)
-      // 2. ATAU Video tag error (kena blokir CORS)
+      // Jika bukan file langsung (mp4) ATAU sudah error di mode video tag -> Pakai Iframe
       const useIframe = !isDirectStream(streamUrl) || error;
 
       if (useIframe) {
@@ -58,7 +49,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                   allowFullScreen
                   title="Stream Content"
-                  // Iframe dari domain lain tidak bisa kirim event 'ended', jadi auto-next tidak jalan di mode ini
+                  sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-top-navigation allow-presentation"
+                  referrerPolicy="no-referrer" 
               />
           );
       }
@@ -74,10 +66,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
             poster={poster}
             onEnded={onEnded}
             onError={handleVideoError}
-            crossOrigin="anonymous" // Mencoba meminta izin CORS
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
         >
             <source src={streamUrl} type="video/mp4" />
-            Browser Anda tidak mendukung tag video atau format ini.
+            <p className="text-white">Browser Anda tidak mendukung tag video.</p>
         </video>
       );
   };
@@ -85,7 +78,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   return (
     <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden bg-black border border-zinc-800 shadow-[0_0_100px_rgba(0,0,0,0.9)] group">
       
-      {/* Overlay: Auto-play countdown, Next Ep, dll */}
       {overlay && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center animate-fadeInUp">
           {overlay}
@@ -106,28 +98,29 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
               </svg>
             </button>
             <p className="mt-10 font-orbitron font-black text-red-600 text-[10px] tracking-[0.8em] animate-pulse uppercase italic">
-                {streamUrl ? "DEKRIPSI STREAM SIAP" : "MENUNGGU JALUR DATA..."}
+                {streamUrl ? "SYSTEM ONLINE" : "OFFLINE"}
             </p>
           </div>
         </div>
       ) : (
         <div className="absolute inset-0 bg-black z-10 flex items-center justify-center">
             {(!streamUrl) ? (
-                <div className="text-center space-y-6 animate-fadeInUp">
+                <div className="text-center space-y-6 animate-fadeInUp p-8">
                     <div className="w-14 h-14 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                    <p className="text-zinc-600 font-orbitron font-black text-[9px] animate-pulse tracking-[0.4em] uppercase">
-                        MENCARI SUMBER SINYAL TERBAIK...
-                    </p>
+                    <div className="space-y-2">
+                        <p className="text-red-500 font-orbitron font-black text-[10px] uppercase tracking-[0.2em]">
+                            STREAM ENCRYPTION FAILED
+                        </p>
+                        <p className="text-zinc-500 text-[10px] max-w-xs mx-auto">
+                            Sumber video diblokir oleh protokol server asal (CORS/403). Silakan coba episode lain atau gunakan Fallback Data.
+                        </p>
+                    </div>
                 </div>
             ) : (
                 <div className="w-full h-full relative animate-[fadeIn_0.4s_ease-out]">
-                    
-                    {/* Render Hybrid Player (Iframe atau Video Tag) */}
                     {renderPlayer()}
-
-                    <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.03)_50%)] bg-[length:100%_4px] opacity-10"></div>
                     
-                    {/* Watermark Status Mode */}
+                    {/* Watermark */}
                     <div className="absolute top-8 right-8 z-30 flex items-center gap-3 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-full border border-white/5 opacity-60 pointer-events-none">
                         <div className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px] ${error ? 'bg-yellow-500 shadow-yellow-500' : 'bg-red-600 shadow-red-600'}`}></div>
                         <span className="text-[9px] font-black text-white/90 uppercase tracking-[0.2em] italic">
@@ -139,16 +132,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
         </div>
       )}
       
-      {/* Background Poster (Visible when not playing or loading) */}
       <img 
         src={poster} 
         alt="Player background" 
         className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${isPlaying ? 'opacity-0 scale-110' : 'opacity-40 scale-100 group-hover:scale-105'}`}
       />
-
-      <div className="absolute bottom-8 left-10 z-30 pointer-events-none opacity-30">
-        <div className="text-[10px] font-orbitron font-black text-white tracking-[0.5em] uppercase italic">NOVA_UPLINK_V2.1</div>
-      </div>
     </div>
   );
 };
