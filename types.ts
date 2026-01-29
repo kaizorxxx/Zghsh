@@ -9,8 +9,8 @@ export interface Drama {
   genre: string[];
   releaseYear: number;
   status: 'Ongoing' | 'Completed';
-  source: 'Dramabox' | 'Melolo';
-  chapters?: any[]; // For Dramabox chapters
+  source: 'Rebahin21' | 'System';
+  chapters?: any[]; // For Dramabox chapters compatibility
   videoUrl?: string; // Resolved streaming URL
 }
 
