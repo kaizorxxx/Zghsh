@@ -1,4 +1,10 @@
 
+export interface Season {
+  number: number;
+  name: string;
+  episodeCount: number;
+}
+
 export interface Anime {
   id: string;
   title: string;
@@ -12,6 +18,7 @@ export interface Anime {
   source: string;
   videoUrl?: string;
   type?: 'tv' | 'movie';
+  seasons?: Season[];
 }
 
 export interface UserProfile {

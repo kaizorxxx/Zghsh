@@ -10,6 +10,9 @@ const Home: React.FC = () => {
   const [recommended, setRecommended] = useState<Anime[]>([]);
   const [searchResults, setSearchResults] = useState<Anime[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isUsingCache, setIsUsingCache] = useState(false);
+  
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const query = searchParams.get('q');
@@ -17,46 +20,58 @@ const Home: React.FC = () => {
   useEffect(() => {
     const loadHome = async () => {
       setLoading(true);
-      if (query) {
-        const results = await searchAnime(query);
-        setSearchResults(results);
-      } else {
-        setSearchResults(null);
-        const [lat, rec] = await Promise.all([
-          fetchLatestAnime(1),
-          fetchAnimeRecommended()
-        ]);
-        setLatest(lat);
-        setRecommended(rec);
+      setError(null);
+      try {
+        if (query) {
+          const results = await searchAnime(query);
+          setSearchResults(results);
+        } else {
+          setSearchResults(null);
+          const [lat, rec] = await Promise.all([
+            fetchLatestAnime(1),
+            fetchAnimeRecommended()
+          ]);
+          setLatest(lat);
+          setRecommended(rec);
+          
+          // Check if we are using mock data
+          if (lat.length > 0 && lat[0].source === 'Neural Cache') {
+            setIsUsingCache(true);
+          }
+        }
+      } catch (err) {
+        console.error("App state error:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadHome();
   }, [query]);
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (searchResults) {
-    return (
-      <div className="space-y-10 pb-20">
-        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">Hasil Pencarian: "{query}"</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-          {searchResults.map(anime => <AnimeCard key={anime.id} drama={anime} />)}
-        </div>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-6">
+        <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="font-orbitron font-black text-red-600 tracking-[0.3em] animate-pulse uppercase italic">Synchronizing Data...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-16 pb-20">
-      {/* Featured Hero (Netflix Style) */}
-      {recommended.length > 0 && (
+    <div className="space-y-16 pb-20 animate-fadeInUp">
+      {/* Cache Warning Indicator */}
+      {isUsingCache && (
+        <div className="bg-red-600/10 border border-red-600/30 p-4 rounded-2xl flex items-center justify-between mb-8 group animate-pulse">
+           <div className="flex items-center gap-4">
+              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Neural Link Unstable - Local Neural Cache Active</p>
+           </div>
+           <button onClick={() => window.location.reload()} className="text-[10px] font-black text-white hover:underline uppercase tracking-widest opacity-60 hover:opacity-100">Retry Link</button>
+        </div>
+      )}
+
+      {/* Featured Hero */}
+      {recommended.length > 0 ? (
         <section className="relative h-[70vh] rounded-[3rem] overflow-hidden group shadow-2xl">
           <img src={recommended[0].thumbnail} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt="Featured" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
@@ -77,9 +92,9 @@ const Home: React.FC = () => {
             </div>
           </div>
         </section>
-      )}
+      ) : null}
 
-      {/* Row: Recommended (Horizontal Scroll) */}
+      {/* Row: Recommended */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Populer di Sansekai</h2>
