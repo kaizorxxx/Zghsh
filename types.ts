@@ -1,5 +1,5 @@
 
-export interface Drama {
+export interface Anime {
   id: string;
   title: string;
   thumbnail: string;
@@ -9,9 +9,9 @@ export interface Drama {
   genre: string[];
   releaseYear: number;
   status: 'Ongoing' | 'Completed';
-  source: 'Rebahin21' | 'System';
-  chapters?: any[]; // For Dramabox chapters compatibility
-  videoUrl?: string; // Resolved streaming URL
+  source: string;
+  videoUrl?: string;
+  type?: 'tv' | 'movie';
 }
 
 export interface UserProfile {
@@ -21,8 +21,8 @@ export interface UserProfile {
   avatar: string;
   bio: string;
   is_vip: boolean;
-  history: string[]; // Drama IDs
-  favorites: string[]; // Drama IDs
+  history: string[]; // Anime IDs
+  favorites: string[]; // Anime IDs
 }
 
 export interface AdConfig {

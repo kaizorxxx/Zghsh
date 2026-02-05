@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 
 interface VideoPlayerProps {
@@ -45,12 +44,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
           return (
               <iframe 
                   src={streamUrl} 
-                  className="w-full h-full border-0 bg-black"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  className="w-full h-full border-0 bg-black absolute inset-0 z-10"
+                  allow="accelerometer; autoplay *; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen *" 
                   allowFullScreen
                   title="Stream Content"
-                  sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-top-navigation allow-presentation"
-                  referrerPolicy="no-referrer" 
               />
           );
       }
@@ -58,7 +55,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
       return (
           <video 
             ref={videoRef}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain absolute inset-0 z-10"
             controls
             autoPlay
             playsInline
@@ -67,7 +64,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
             onEnded={onEnded}
             onError={handleVideoError}
             crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
         >
             <source src={streamUrl} type="video/mp4" />
             <p className="text-white">Browser Anda tidak mendukung tag video.</p>
@@ -76,17 +72,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
   };
 
   return (
-    <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden bg-black border border-zinc-800 shadow-[0_0_100px_rgba(0,0,0,0.9)] group">
+    <div className="relative w-full aspect-video rounded-[3rem] overflow-hidden bg-black border border-zinc-800 shadow-[0_0_100px_rgba(0,0,0,0.9)] group isolate">
       
+      {/* 1. LAYER PALING BELAKANG: BACKGROUND POSTER */}
+      <img 
+        src={poster} 
+        alt="Player background" 
+        className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 z-0 ${isPlaying ? 'opacity-0 scale-110 pointer-events-none' : 'opacity-40 scale-100 group-hover:scale-105'}`}
+      />
+
+      {/* 2. LAYER TENGAH: OVERLAY CONTENT (Subtitle/Next Ep) */}
       {overlay && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center animate-fadeInUp">
           {overlay}
         </div>
       )}
 
+      {/* 3. LAYER DEPAN: PLAYER CONTROLS & VIDEO */}
       {!isPlaying ? (
         <div className="absolute inset-0 flex items-center justify-center z-20">
-          <div className="absolute inset-0 bg-zinc-950/50 backdrop-blur-2xl"></div>
+          <div className="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm"></div>
           <div className="relative flex flex-col items-center">
             <button 
               onClick={() => setIsPlaying(true)}
@@ -97,46 +102,29 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ poster, streamUrl, onEnded, o
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
               </svg>
             </button>
-            <p className="mt-10 font-orbitron font-black text-red-600 text-[10px] tracking-[0.8em] animate-pulse uppercase italic">
+            <p className="mt-10 font-orbitron font-black text-red-600 text-[10px] tracking-[0.8em] animate-pulse uppercase italic relative z-20">
                 {streamUrl ? "SYSTEM ONLINE" : "OFFLINE"}
             </p>
           </div>
         </div>
       ) : (
-        <div className="absolute inset-0 bg-black z-10 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black z-30 flex items-center justify-center">
             {(!streamUrl) ? (
-                <div className="text-center space-y-6 animate-fadeInUp p-8">
+                <div className="text-center space-y-6 animate-fadeInUp p-8 relative z-40">
                     <div className="w-14 h-14 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                     <div className="space-y-2">
                         <p className="text-red-500 font-orbitron font-black text-[10px] uppercase tracking-[0.2em]">
-                            STREAM ENCRYPTION FAILED
-                        </p>
-                        <p className="text-zinc-500 text-[10px] max-w-xs mx-auto">
-                            Sumber video diblokir oleh protokol server asal (CORS/403). Silakan coba episode lain atau gunakan Fallback Data.
+                            CONNECTING TO NODE...
                         </p>
                     </div>
                 </div>
             ) : (
                 <div className="w-full h-full relative animate-[fadeIn_0.4s_ease-out]">
                     {renderPlayer()}
-                    
-                    {/* Watermark */}
-                    <div className="absolute top-8 right-8 z-30 flex items-center gap-3 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-full border border-white/5 opacity-60 pointer-events-none">
-                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px] ${error ? 'bg-yellow-500 shadow-yellow-500' : 'bg-red-600 shadow-red-600'}`}></div>
-                        <span className="text-[9px] font-black text-white/90 uppercase tracking-[0.2em] italic">
-                             {error || !isDirectStream(streamUrl) ? 'EMBED_PROTOCOL' : 'DIRECT_FEED'}
-                        </span>
-                    </div>
                 </div>
             )}
         </div>
       )}
-      
-      <img 
-        src={poster} 
-        alt="Player background" 
-        className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${isPlaying ? 'opacity-0 scale-110' : 'opacity-40 scale-100 group-hover:scale-105'}`}
-      />
     </div>
   );
 };

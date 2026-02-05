@@ -2,38 +2,62 @@
 import { UserProfile, AdConfig } from '../types';
 import { MOCK_USER, INITIAL_AD_CONFIG } from '../constants';
 
-class MockSupabase {
-  private profile: UserProfile = { ...MOCK_USER };
-  private ads: AdConfig = { ...INITIAL_AD_CONFIG };
+class SupabaseService {
+  private storageKey = 'nova_anime_user_data';
+  private adsKey = 'nova_anime_ads_config';
 
-  getProfile() {
-    return this.profile;
+  constructor() {
+    if (!localStorage.getItem(this.storageKey)) {
+      localStorage.setItem(this.storageKey, JSON.stringify(MOCK_USER));
+    }
+    // Initialize ad config in storage if it doesn't exist
+    if (!localStorage.getItem(this.adsKey)) {
+      localStorage.setItem(this.adsKey, JSON.stringify(INITIAL_AD_CONFIG));
+    }
+  }
+
+  getProfile(): UserProfile {
+    return JSON.parse(localStorage.getItem(this.storageKey) || '{}');
   }
 
   updateProfile(updates: Partial<UserProfile>) {
-    this.profile = { ...this.profile, ...updates };
-    return this.profile;
+    const current = this.getProfile();
+    const updated = { ...current, ...updates };
+    localStorage.setItem(this.storageKey, JSON.stringify(updated));
+    return updated;
+  }
+
+  toggleFavorite(animeId: string) {
+    const profile = this.getProfile();
+    const isFav = profile.favorites.includes(animeId);
+    const newFavs = isFav 
+      ? profile.favorites.filter(id => id !== animeId)
+      : [...profile.favorites, animeId];
+    return this.updateProfile({ favorites: newFavs });
+  }
+
+  addToHistory(animeId: string) {
+    const profile = this.getProfile();
+    const newHistory = [animeId, ...profile.history.filter(id => id !== animeId)].slice(0, 20);
+    return this.updateProfile({ history: newHistory });
   }
 
   toggleVip() {
-    this.profile.is_vip = !this.profile.is_vip;
-    return this.profile.is_vip;
+    const profile = this.getProfile();
+    return this.updateProfile({ is_vip: !profile.is_vip });
   }
 
-  getAds() {
-    return this.ads;
+  // Retrieve current ad configuration from local storage
+  getAds(): AdConfig {
+    const data = localStorage.getItem(this.adsKey);
+    return data ? JSON.parse(data) : INITIAL_AD_CONFIG;
   }
 
-  updateAds(updates: Partial<AdConfig>) {
-    this.ads = { ...this.ads, ...updates };
-    return this.ads;
-  }
-
-  // Auth Mocks
-  async signInWithGoogle() {
-    console.log("Mock Google Sign In");
-    return { user: this.profile, error: null };
+  // Persist updated ad configuration to local storage
+  updateAds(config: AdConfig) {
+    localStorage.setItem(this.adsKey, JSON.stringify(config));
+    return config;
   }
 }
 
-export const supabase = new MockSupabase();
+export const supabase = new SupabaseService();

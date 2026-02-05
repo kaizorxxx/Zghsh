@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Drama } from '../types';
+import { Anime } from '../types';
 
 interface DramaCardProps {
-  drama: Drama;
+  drama: Anime;
 }
 
 const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
