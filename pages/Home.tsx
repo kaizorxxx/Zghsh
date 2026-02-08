@@ -1,46 +1,50 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { fetchLatestAnime, fetchAnimeRecommended, searchAnime } from '../services/api';
-import { Anime } from '../types';
+import { useLocation, Link } from 'react-router-dom';
+import { getHome, search, getBatch } from '../services/api';
+import { supabase } from '../services/supabase';
+import { AnimeItem } from '../types';
 import AnimeCard from '../components/DramaCard';
 
 const Home: React.FC = () => {
-  const [latest, setLatest] = useState<Anime[]>([]);
-  const [recommended, setRecommended] = useState<Anime[]>([]);
-  const [searchResults, setSearchResults] = useState<Anime[] | null>(null);
+  const [latest, setLatest] = useState<AnimeItem[]>([]);
+  const [popular, setPopular] = useState<AnimeItem[]>([]);
+  const [searchResults, setSearchResults] = useState<AnimeItem[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isUsingCache, setIsUsingCache] = useState(false);
   
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const query = searchParams.get('q');
 
   useEffect(() => {
+    supabase.incrementView(); // Track view for admin dashboard
     const loadHome = async () => {
       setLoading(true);
-      setError(null);
       try {
         if (query) {
-          const results = await searchAnime(query);
-          setSearchResults(results);
+          const res = await search(query);
+          if (res.data && Array.isArray(res.data.anime)) {
+             setSearchResults(res.data.anime);
+          } else {
+             setSearchResults([]);
+          }
         } else {
           setSearchResults(null);
-          const [lat, rec] = await Promise.all([
-            fetchLatestAnime(1),
-            fetchAnimeRecommended()
+          const [homeRes, batchRes] = await Promise.all([
+            getHome(1),
+            getBatch(1)
           ]);
-          setLatest(lat);
-          setRecommended(rec);
           
-          // Check if we are using mock data
-          if (lat.length > 0 && lat[0].source === 'Neural Cache') {
-            setIsUsingCache(true);
+          if (homeRes.data && Array.isArray(homeRes.data.anime)) {
+              setLatest(homeRes.data.anime);
+          }
+          if (batchRes.data && Array.isArray(batchRes.data.anime)) {
+              // Using batch/recommended as the "Popular" data source
+              setPopular(batchRes.data.anime.slice(0, 15)); // Get more for scrolling
           }
         }
       } catch (err) {
-        console.error("App state error:", err);
+        console.error("Signal Lost:", err);
       } finally {
         setLoading(false);
       }
@@ -50,72 +54,125 @@ const Home: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-6">
-        <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="font-orbitron font-black text-red-600 tracking-[0.3em] animate-pulse uppercase italic">Synchronizing Data...</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-8">
+        <div className="relative">
+            <div className="w-20 h-20 border-[3px] border-red-600/10 rounded-full"></div>
+            <div className="absolute inset-0 w-20 h-20 border-t-[3px] border-red-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-4 border border-red-500/20 rounded-full animate-pulse"></div>
+        </div>
+        <div className="text-center space-y-2">
+            <p className="font-orbitron font-black text-red-600 tracking-[0.4em] animate-pulse uppercase italic">Membangun Tautan...</p>
+            <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">Menghubungkan ke Node RGS</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-16 pb-20 animate-fadeInUp">
-      {/* Cache Warning Indicator */}
-      {isUsingCache && (
-        <div className="bg-red-600/10 border border-red-600/30 p-4 rounded-2xl flex items-center justify-between mb-8 group animate-pulse">
-           <div className="flex items-center gap-4">
-              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Neural Link Unstable - Local Neural Cache Active</p>
-           </div>
-           <button onClick={() => window.location.reload()} className="text-[10px] font-black text-white hover:underline uppercase tracking-widest opacity-60 hover:opacity-100">Retry Link</button>
-        </div>
-      )}
-
-      {/* Featured Hero */}
-      {recommended.length > 0 ? (
-        <section className="relative h-[70vh] rounded-[3rem] overflow-hidden group shadow-2xl">
-          <img src={recommended[0].thumbnail} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt="Featured" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-          <div className="absolute bottom-20 left-12 max-w-2xl space-y-6">
-            <div className="flex items-center gap-3">
-              <span className="bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded">FEATURED</span>
-              <span className="text-white font-bold text-xs uppercase tracking-widest">Rekomendasi AI Pekan Ini</span>
-            </div>
-            <h1 className="text-6xl md:text-8xl font-black text-white leading-none uppercase tracking-tighter italic drop-shadow-2xl">
-              {recommended[0].title}
-            </h1>
-            <p className="text-zinc-300 text-lg line-clamp-3 font-medium opacity-80 italic">
-              {recommended[0].description}
-            </p>
-            <div className="flex gap-4">
-              <button className="bg-white text-black px-12 py-4 rounded-full font-black uppercase text-xs tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl">Putar Sekarang</button>
-              <button className="bg-white/10 backdrop-blur-md text-white px-12 py-4 rounded-full font-black uppercase text-xs tracking-widest hover:bg-white/20 transition-all border border-white/10">+ Simpan</button>
-            </div>
+      {/* Content Rendering */}
+      {searchResults ? (
+        <section className="space-y-10 animate-fadeInUp">
+          <div className="flex items-center gap-4">
+            <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">Hasil Pencarian: "{query}"</h2>
+            <div className="h-[2px] flex-grow bg-gradient-to-r from-red-600 to-transparent"></div>
           </div>
-        </section>
-      ) : null}
-
-      {/* Row: Recommended */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Populer di Sansekai</h2>
-          <button className="text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline">Lihat Semua</button>
-        </div>
-        <div className="flex gap-6 overflow-x-auto pb-8 hide-scrollbar">
-          {recommended.map(anime => (
-            <div key={anime.id} className="min-w-[220px] max-w-[220px]">
-              <AnimeCard drama={anime} />
+          {searchResults.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+              {searchResults.map((anime, idx) => <AnimeCard key={`${anime.slug}-${idx}`} drama={anime} />)}
             </div>
-          ))}
-        </div>
-      </section>
+          ) : (
+            <div className="py-20 text-center glass rounded-[3rem] border-white/5">
+              <p className="text-zinc-500 font-bold italic uppercase tracking-[0.3em]">Tidak ada sinyal yang cocok ditemukan.</p>
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          {/* Featured Hero (Using first item from Latest) */}
+          {latest.length > 0 && (
+            <section className="relative h-[70vh] rounded-[4rem] overflow-hidden group shadow-[0_0_100px_rgba(0,0,0,0.5)]">
+              <img src={latest[0].image || latest[0].thumbnail} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3000ms]" alt="Hero" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
+              <div className="absolute bottom-16 left-12 right-12 space-y-6">
+                <div className="flex items-center gap-3">
+                  <span className="bg-red-600 text-white text-[9px] font-black px-4 py-1.5 rounded-full tracking-widest shadow-lg shadow-red-600/40 uppercase">Rilis Baru</span>
+                </div>
+                <h1 className="text-5xl md:text-8xl font-black text-white leading-none uppercase tracking-tighter italic drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)]">
+                  {latest[0].title}
+                </h1>
+                <p className="text-zinc-300 text-lg font-medium italic opacity-70">
+                   EPISODE {latest[0].episode || latest[0].latest_episode} • {latest[0].type}
+                </p>
+                <div className="flex flex-wrap gap-4 pt-4">
+                  <Link to={`/drama/${latest[0].slug}`} className="bg-white text-black px-12 py-5 rounded-full font-black uppercase text-xs tracking-[0.2em] hover:bg-red-600 hover:text-white transition-all shadow-2xl active:scale-95">
+                    NONTON SEKARANG
+                  </Link>
+                </div>
+              </div>
+            </section>
+          )}
 
-      {/* Row: Latest Uploads */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Update Terbaru</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-          {latest.map(anime => <AnimeCard key={anime.id} drama={anime} />)}
-        </div>
-      </section>
+          {/* Popular Top 10 Section (Side Scrolling) */}
+          <section className="space-y-8">
+            <div className="flex items-center justify-between pb-4">
+              <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-red-600 rounded-full animate-pulse"></span>
+                Populer Hari Ini
+              </h2>
+            </div>
+            
+            <div className="relative w-full">
+                {/* Fade effect edges */}
+                <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none"></div>
+                <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none"></div>
+
+                <div className="flex overflow-x-auto hide-scrollbar gap-6 pb-10 px-4 snap-x snap-mandatory">
+                {popular.map((anime, idx) => (
+                    <div key={`${anime.slug}-${idx}`} className="relative flex-none group w-[160px] sm:w-[220px] snap-center">
+                        <div className="flex items-end">
+                            {/* Huge Number */}
+                            <span 
+                                className="text-[120px] sm:text-[160px] font-black leading-none -mr-8 mb-[-20px] z-0 relative select-none"
+                                style={{
+                                    WebkitTextStroke: '4px #444',
+                                    color: 'black',
+                                    textShadow: '0 0 20px rgba(0,0,0,0.8)'
+                                }}
+                            >
+                                {idx + 1}
+                            </span>
+                            
+                            {/* Card */}
+                            <Link to={`/drama/${anime.slug}`} className="relative z-10 w-full aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-white/10 group-hover:scale-105 transition-transform duration-300 group-hover:border-red-600 block bg-zinc-900">
+                                <img src={anime.image || anime.thumbnail} className="w-full h-full object-cover" loading="lazy" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
+                                <div className="absolute bottom-2 left-2 right-2">
+                                    <p className="text-[10px] text-white font-bold truncate">{anime.title}</p>
+                                    <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-wider">EP {anime.episode || anime.latest_episode}</p>
+                                </div>
+                            </Link>
+                        </div>
+                    </div>
+                ))}
+                </div>
+            </div>
+          </section>
+
+          {/* Latest Updates Grid */}
+          <section className="space-y-10">
+             <div className="flex items-center gap-4">
+                <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">Update Terbaru</h2>
+                <div className="h-[2px] flex-grow bg-gradient-to-r from-red-600 to-transparent"></div>
+             </div>
+             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-10">
+                {latest.map((anime, idx) => (
+                   <AnimeCard key={`${anime.slug}-latest-${idx}`} drama={anime} />
+                ))}
+             </div>
+          </section>
+        </>
+      )}
     </div>
   );
 };

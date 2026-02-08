@@ -1,18 +1,21 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Anime } from '../types';
+import { AnimeItem } from '../types';
 
 interface DramaCardProps {
-  drama: Anime;
+  drama: AnimeItem;
 }
 
 const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  // Normalize data fields from the new API
+  const imageUrl = drama.image || drama.thumbnail || 'https://placehold.co/600x800/000/fff?text=NO_SIGNAL';
+  const episodeDisplay = drama.episode || drama.latest_episode || '?';
+  
   return (
-    // Mengirim object drama melalui state agar halaman detail tidak perlu fetch ulang
-    <Link to={`/drama/${drama.id}`} state={{ drama }} className="group block mb-2">
+    <Link to={`/drama/${drama.slug}`} className="group block mb-2">
       <div className="relative aspect-[12/17] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 group-hover:border-red-600 transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(225,29,72,0.3)] group-hover:-translate-y-2">
         {/* Placeholder/Loading shimmer */}
         {!imageLoaded && (
@@ -20,7 +23,7 @@ const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
         )}
         
         <img 
-          src={drama.thumbnail} 
+          src={imageUrl} 
           alt={drama.title} 
           onLoad={() => setImageLoaded(true)}
           className={`w-full h-full object-cover transition-all duration-1000 ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'} group-hover:scale-110`}
@@ -29,15 +32,15 @@ const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
         {/* Cinematic HUD elements */}
         <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
 
-        {/* Rating Badge */}
+        {/* Episode Badge */}
         <div className="absolute top-4 right-4 z-20 px-2 py-1 bg-black/80 backdrop-blur-md rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-500 -translate-y-2 group-hover:translate-y-0">
-            <span className="text-[10px] font-black text-red-500">★ {drama.rating}</span>
+            <span className="text-[10px] font-black text-red-500">EP {episodeDisplay}</span>
         </div>
 
-        {/* "Anime" or "Source" Tag */}
+        {/* Type Tag */}
         <div className="absolute top-4 left-4 z-20 px-2 py-1 bg-red-600 rounded-md shadow-lg transform -translate-x-12 group-hover:translate-x-0 transition-transform duration-500">
             <span className="text-[8px] font-black text-white uppercase tracking-wider">
-                {drama.genre.includes('Anime') ? 'ANIME' : 'UPLINK'}
+                {drama.type || 'TV'}
             </span>
         </div>
         
@@ -56,9 +59,9 @@ const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
             {drama.title}
         </h3>
         <div className="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
-            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">{drama.genre[0]}</span>
+            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">{drama.type}</span>
             <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
-            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">{drama.releaseYear}</span>
+            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">{drama.release_time || 'Unknown'}</span>
         </div>
       </div>
     </Link>

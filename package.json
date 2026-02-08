@@ -12,7 +12,9 @@
     "@google/genai": "^1.38.0",
     "react-dom": "^19.2.3",
     "react": "^19.2.3",
-    "react-router-dom": "^7.12.0"
+    "react-router-dom": "^7.12.0",
+    "clsx": "latest",
+    "tailwind-merge": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
