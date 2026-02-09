@@ -30,7 +30,7 @@ const Admin: React.FC<AdminProps> = ({ user, adConfig, onUpdateAds }) => {
 
   // Helper to draw a simple line chart from array
   const drawChart = (data: number[]) => {
-      if (!data.length) return null;
+      if (!data || !data.length) return null;
       const max = Math.max(...data) * 1.2; // slightly higher
       const points = data.map((val, i) => {
           const x = (i / (data.length - 1)) * 100;
@@ -202,7 +202,7 @@ const Admin: React.FC<AdminProps> = ({ user, adConfig, onUpdateAds }) => {
            <div className="space-y-4">
               <div className="flex items-center justify-between p-4 glass rounded-2xl border-cyan-400/20 bg-cyan-400/5">
                  <div className="flex items-center gap-3">
-                    <img src={user.avatar || 'https://ui-avatars.com/api/?name=Admin'} className="w-10 h-10 rounded-xl" />
+                    <img src={user.avatar || 'https://ui-avatars.com/api/?name=Admin'} className="w-10 h-10 rounded-xl" alt="Admin" />
                     <div>
                         <p className="text-sm font-bold text-white">Administrator</p>
                         <p className="text-[10px] text-slate-500">ROOT ACCESS</p>

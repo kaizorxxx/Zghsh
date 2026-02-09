@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getDetail, getWatch } from '../services/api';
-import { AnimeDetail, UserProfile, StreamingServer } from '../types';
+import { AnimeDetail, UserProfile, StreamingServer, DownloadLink } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
 import { supabase } from '../services/supabase';
 import { getEpisodeNumber } from '../utils-episode';
@@ -22,6 +22,7 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
   const [activeEpSlug, setActiveEpSlug] = useState<string | null>(null);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [servers, setServers] = useState<StreamingServer[]>([]);
+  const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>([]);
   const [currentServerName, setCurrentServerName] = useState<string | null>(null);
 
   const [isFavorited, setIsFavorited] = useState(false);
@@ -40,14 +41,16 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
            setAnime(res.data);
            
            // Sort episodes by number (Ascending: 1, 2, 3...)
-           const eps = res.data.episodes ? [...res.data.episodes].sort((a, b) => {
+           const rawEpisodes = res.data.episodes || [];
+           const eps = [...rawEpisodes].sort((a, b) => {
                const numA = parseInt(getEpisodeNumber(a.slug) || '0');
                const numB = parseInt(getEpisodeNumber(b.slug) || '0');
                return numA - numB;
-           }) : [];
+           });
            setSortedEpisodes(eps);
 
-           setIsFavorited(user.favorites.includes(id));
+           const userFavs = user?.favorites || [];
+           setIsFavorited(userFavs.includes(id));
            supabase.addToHistory(id);
         }
       } catch (err) {
@@ -57,7 +60,7 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
       }
     };
     loadAnimeData();
-  }, [id]);
+  }, [id, user]);
 
   const toggleFav = () => {
     if (id) {
@@ -72,6 +75,7 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
     setActiveEpSlug(epSlug);
     setStreamUrl(null); 
     setServers([]);
+    setDownloadLinks([]);
     setCurrentServerName(null);
     setLoadingStream(true);
     
@@ -80,16 +84,26 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
     
     try {
         const res = await getWatch(epSlug);
-        if (res.data && res.data.streaming_servers && res.data.streaming_servers.length > 0) {
-            setServers(res.data.streaming_servers);
+        
+        // Handle Streaming Servers
+        const resServers = res?.data?.streaming_servers || [];
+        if (resServers.length > 0) {
+            setServers(resServers);
             
             // Prefer "P" server or first available
-            const preferred = res.data.streaming_servers.find(s => s.name.includes("P")) || res.data.streaming_servers[0];
+            const preferred = resServers.find(s => s.name.includes("P")) || resServers[0];
             setStreamUrl(preferred.url);
             setCurrentServerName(preferred.name);
         } else {
             console.warn("No streams found");
         }
+
+        // Handle Download Links
+        const resDownloads = res?.data?.download_links || [];
+        if (resDownloads.length > 0) {
+            setDownloadLinks(resDownloads);
+        }
+
     } catch (err) {
         console.error("Stream uplink failed", err);
     } finally {
@@ -110,10 +124,7 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
       // If there is a next episode in the sorted list
       if (currentIndex !== -1 && currentIndex < sortedEpisodes.length - 1) {
           const nextEp = sortedEpisodes[currentIndex + 1];
-          console.log("Autoplaying next episode:", nextEp.title);
           handleEpSelect(nextEp.slug);
-      } else {
-          console.log("Series finished or no next episode.");
       }
   };
 
@@ -132,6 +143,9 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
     );
   }
 
+  const infoEntries = anime.info ? Object.entries(anime.info) : [];
+  const genres = anime.info?.genres || [];
+
   return (
     <div className="space-y-12 animate-fadeInUp" ref={playerRef}>
       <VideoPlayer 
@@ -141,9 +155,7 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
           overlay={loadingStream ? <div className="text-red-500 font-bold tracking-widest animate-pulse">MENCARI LINK...</div> : null}
       />
 
-      {/* Video Controls & Info */}
       <div className="space-y-6">
-        {/* Navigation Buttons */}
         <div className="flex items-center justify-between gap-4">
             <button
             onClick={() => prevEp && handleEpSelect(prevEp.slug)}
@@ -172,113 +184,147 @@ const AnimeDetails: React.FC<AnimeDetailsProps> = ({ user }) => {
             </button>
         </div>
         
-        {/* Server Selection */}
         {servers.length > 0 && (
              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-2 text-zinc-500">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" /></svg>
-                      <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">PILIH SERVER:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                      {servers.map((server) => (
-                          <button
-                              key={server.name}
-                              onClick={() => handleServerSelect(server)}
-                              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
-                                  currentServerName === server.name
-                                      ? 'bg-red-600 text-white border-red-500 shadow-[0_0_10px_rgba(220,38,38,0.4)]'
-                                      : 'bg-black text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-white'
-                              }`}
-                          >
-                              {server.name}
-                          </button>
-                      ))}
-                  </div>
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest shrink-0">
+                    Neural Uplink (Server):
+                </span>
+                <div className="flex flex-wrap gap-2">
+                    {servers.map((server) => (
+                        <button
+                            key={server.name}
+                            onClick={() => handleServerSelect(server)}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                currentServerName === server.name 
+                                ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' 
+                                : 'bg-black text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-600'
+                            }`}
+                        >
+                            {server.name}
+                        </button>
+                    ))}
+                </div>
              </div>
+        )}
+
+        {downloadLinks.length > 0 && (
+            <div className="bg-zinc-900/30 p-6 rounded-3xl border border-white/5 space-y-4">
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Download Data
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {downloadLinks.map((linkGroup, idx) => (
+                        <div key={idx} className="bg-black/40 p-4 rounded-xl border border-white/5 hover:border-red-600/30 transition-colors">
+                            <div className="mb-3 flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${(linkGroup.quality || '').includes('1080') ? 'bg-red-500' : 'bg-cyan-500'}`}></span>
+                                <span className="text-white font-bold font-orbitron text-sm">{linkGroup.quality}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {(linkGroup.links || []).map((link, lIdx) => (
+                                    <a 
+                                        key={lIdx} 
+                                        href={link.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] font-bold bg-zinc-800 hover:bg-white hover:text-black text-zinc-300 px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider"
+                                    >
+                                        {link.provider}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
-        <div className="lg:col-span-3 space-y-10">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-8">
-            <div className="space-y-4">
-              <h1 className="text-3xl md:text-5xl font-black text-white italic uppercase tracking-tighter drop-shadow-lg leading-tight">{anime.title}</h1>
-              <div className="flex flex-wrap items-center gap-4 text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em]">
-                <span className="text-red-600 bg-red-600/10 px-2 py-1 rounded border border-red-600/20">{anime.info.status}</span>
-                <span>{anime.info.durasi}</span>
-                <span>{anime.info.tipe}</span>
-                <span className="bg-white/5 px-4 py-1 rounded text-white border border-white/10 uppercase tracking-widest text-[9px]">{anime.info.studio}</span>
+      <div className="glass p-8 rounded-[3rem] border-white/5">
+        <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-orbitron font-black text-white uppercase italic tracking-tighter">
+                Pilih Episode
+            </h3>
+            <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest bg-zinc-900 px-3 py-1 rounded-full">
+                {sortedEpisodes.length} Episodes
+            </span>
+        </div>
+        
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+            {sortedEpisodes.map((ep) => {
+                const epNum = getEpisodeNumber(ep.slug) || '?';
+                const isActive = activeEpSlug === ep.slug;
+                
+                return (
+                    <button
+                        key={ep.slug}
+                        onClick={() => handleEpSelect(ep.slug)}
+                        className={`py-3 rounded-xl font-black text-sm relative overflow-hidden group transition-all ${
+                            isActive 
+                            ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] scale-105 z-10' 
+                            : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                        }`}
+                    >
+                        {isActive && <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>}
+                        {epNum}
+                    </button>
+                );
+            })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className="lg:col-span-2 space-y-8">
+              <div>
+                  <h1 className="text-4xl md:text-5xl font-black font-orbitron text-white uppercase italic tracking-tighter mb-4 leading-none">
+                      {anime.title}
+                  </h1>
+                  <div className="flex flex-wrap gap-3">
+                      {genres.map(g => (
+                          <span key={g} className="px-3 py-1 rounded-full border border-zinc-700 text-[10px] font-bold text-zinc-400 uppercase tracking-widest hover:border-red-600 hover:text-white transition-colors cursor-default">
+                              {g}
+                          </span>
+                      ))}
+                  </div>
               </div>
-            </div>
-            
-            <button 
-              onClick={toggleFav}
-              className={`flex items-center gap-3 px-8 py-4 rounded-full font-black uppercase text-[10px] tracking-widest transition-all shadow-xl hover:scale-105 active:scale-95 border ${
-                isFavorited ? 'bg-red-600 text-white border-red-500 animate-glowPulse' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'
-              }`}
-            >
-              <svg className="w-4 h-4" fill={isFavorited ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-              {isFavorited ? 'TERSIMPAN' : 'SIMPAN KE FAVORIT'}
-            </button>
+              
+              <div className="glass p-8 rounded-[2rem] border-white/5 space-y-4">
+                  <h3 className="text-lg font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
+                      Sinopsis
+                  </h3>
+                  <p className="text-zinc-400 leading-relaxed text-sm">
+                      {anime.synopsis}
+                  </p>
+              </div>
           </div>
 
-          <div className="bg-zinc-950/80 backdrop-blur-md p-8 rounded-[3rem] border border-zinc-900 shadow-2xl space-y-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 blur-[80px] rounded-full pointer-events-none"></div>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
-              <h3 className="text-xl font-black text-white uppercase italic tracking-tighter flex items-center gap-3">
-                <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
-                Daftar Episode
-              </h3>
-            </div>
+          <div className="space-y-6">
+              <div className="glass p-6 rounded-[2rem] border-white/5 space-y-6">
+                  <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl mb-6 group">
+                      <img src={anime.thumbnail} className="w-full h-full object-cover" alt={anime.title} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                      <button 
+                        onClick={toggleFav}
+                        className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 hover:bg-red-600 hover:border-red-600 transition-all group-hover:scale-110 shadow-lg"
+                      >
+                         <svg className={`w-6 h-6 ${isFavorited ? 'text-white fill-current' : 'text-white'}`} fill={isFavorited ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                      </button>
+                  </div>
 
-            {/* Episode Grid (Reversed or normal based on sortedEpisodes) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 relative z-10">
-              {sortedEpisodes.map((ep) => (
-                <button 
-                    key={ep.slug}
-                    onClick={() => handleEpSelect(ep.slug)}
-                    className={`px-4 py-3 rounded-xl font-black text-[10px] flex items-center justify-between transition-all border relative group/ep ${
-                      activeEpSlug === ep.slug
-                        ? 'bg-red-600 border-red-500 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] z-10 animate-glowPulse' 
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-red-600/50 hover:text-white hover:scale-105'
-                    }`}
-                  >
-                    <span className="truncate max-w-[80%]">{ep.title.replace(anime.title, '').replace(/Episode\s+/i, 'Ep ').trim() || ep.episode}</span>
-                    {activeEpSlug === ep.slug && (
-                        <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    )}
-                  </button>
-              ))}
-            </div>
+                  <div className="space-y-4">
+                      {infoEntries.map(([key, value]) => {
+                          if (key === 'genres' || !value) return null;
+                          return (
+                              <div key={key} className="flex justify-between items-center text-xs border-b border-white/5 pb-2 last:border-0">
+                                  <span className="text-zinc-500 font-bold uppercase tracking-wider">{key.replace(/_/g, ' ')}</span>
+                                  <span className="text-zinc-300 font-medium text-right max-w-[50%] truncate">{value.toString()}</span>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
           </div>
-        </div>
-
-        {/* Sidebar Info */}
-        <div className="space-y-6">
-          <div className="bg-zinc-950/50 p-8 rounded-[2rem] border border-white/5 h-fit shadow-xl group hover:border-red-600/20 transition-all">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-red-600 rounded-full group-hover:h-8 transition-all"></div>
-                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">SINOPSIS</h4>
-            </div>
-            <p className="text-zinc-400 text-sm leading-relaxed italic opacity-80 group-hover:opacity-100 transition-opacity">
-                {anime.synopsis || 'Tidak ada data ditemukan di catatan neural.'}
-            </p>
-          </div>
-
-          <div className="bg-zinc-950/30 p-8 rounded-[2rem] border border-white/5 flex flex-col gap-4">
-             <div className="flex justify-between items-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-                <span>Diperbarui</span>
-                <span className="text-red-500 text-right">{anime.info.diperbarui_pada}</span>
-             </div>
-             <div className="flex justify-between items-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-                <span>Genre</span>
-                <span className="text-white text-right">{(anime.info.genres || []).slice(0, 3).join(' • ')}</span>
-             </div>
-          </div>
-        </div>
       </div>
     </div>
   );
