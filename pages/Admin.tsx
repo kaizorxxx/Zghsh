@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AdConfig, SiteStats } from '../types';
-import { supabase } from '../services/supabase';
+import { firebaseService as supabase } from '../services/firebase';
 
 interface AdminProps {
   user: UserProfile;

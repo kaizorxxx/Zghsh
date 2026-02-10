@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getDetail, getWatch } from '../services/api';
 import { AnimeDetail, UserProfile, StreamingServer, DownloadLink } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
-import { supabase } from '../services/supabase';
+import { firebaseService as supabase } from '../services/firebase';
 import { getEpisodeNumber } from '../utils-episode';
 
 interface AnimeDetailsProps {

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabase';
+import { firebaseService as supabase } from '../services/firebase';
 
 interface VideoPlayerProps {
   poster: string;

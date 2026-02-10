@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { UserProfile, AnimeDetail } from '../types';
-import { supabase } from '../services/supabase';
+import { firebaseService as supabase } from '../services/firebase';
 import { getDetail } from '../services/api';
 import { Link, Navigate } from 'react-router-dom';
 
@@ -68,18 +68,9 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
   };
 
   const handleChangePassword = () => {
-      if (formData.currentPassword !== user.password) {
-          alert("Password lama salah!");
-          return;
-      }
-      if (formData.newPassword.length < 6) {
-          alert("Password baru minimal 6 karakter.");
-          return;
-      }
-      supabase.updateProfile({ password: formData.newPassword });
-      setFormData(prev => ({...prev, currentPassword: '', newPassword: ''}));
-      alert("Password berhasil diubah.");
-      onUpdate();
+      // Firebase doesn't expose user password for security.
+      // Re-authentication would be needed here for a real flow.
+      alert("Untuk keamanan, silakan gunakan fitur 'Lupa Password' di layar login atau update via provider email.");
   };
 
   return (
@@ -220,31 +211,11 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
                            </div>
                       </div>
 
-                      {/* Change Password Form */}
-                      <div className="glass p-8 rounded-[2rem] border-white/5 space-y-6">
-                           <h3 className="font-orbitron font-bold text-white uppercase tracking-wider mb-2">Ganti Password</h3>
+                      {/* Change Password Form (Disabled for Social Login/Basic implementation safety) */}
+                      <div className="glass p-8 rounded-[2rem] border-white/5 space-y-6 opacity-50 pointer-events-none grayscale">
+                           <h3 className="font-orbitron font-bold text-white uppercase tracking-wider mb-2">Ganti Password (Disabled)</h3>
                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1 block">Password Saat Ini</label>
-                                    <input 
-                                        type="password"
-                                        value={formData.currentPassword}
-                                        onChange={(e) => setFormData({...formData, currentPassword: e.target.value})}
-                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-600 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1 block">Password Baru</label>
-                                    <input 
-                                        type="password"
-                                        value={formData.newPassword}
-                                        onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
-                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-600 outline-none"
-                                    />
-                                </div>
-                                <button onClick={handleChangePassword} className="w-full bg-red-600 text-white font-black uppercase tracking-widest py-3 rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20">
-                                    Update Password
-                                </button>
+                               <p className="text-xs text-zinc-400">Pengaturan keamanan dikelola oleh penyedia autentikasi (Google/GitHub/Email).</p>
                            </div>
                       </div>
                   </div>

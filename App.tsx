@@ -9,7 +9,7 @@ import Admin from './pages/Admin';
 import AdminLogin from './pages/AdminLogin';
 import About from './pages/About';
 import AuthModal from './components/AuthModal';
-import { supabase } from './services/supabase';
+import { firebaseService as supabase } from './services/firebase';
 import { UserProfile, AdConfig } from './types';
 
 const App: React.FC = () => {
@@ -19,7 +19,15 @@ const App: React.FC = () => {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
+    // Initial load
     setUser(supabase.getProfile());
+    
+    // Subscribe to Firebase Auth Changes
+    const unsubscribe = supabase.onAuthChange((updatedUser) => {
+        setUser(updatedUser);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const refreshUser = () => {
@@ -41,7 +49,7 @@ const App: React.FC = () => {
         user={user} 
         adConfig={adConfig} 
         onOpenAuth={() => openAuth('login')}
-        onLogout={() => { supabase.logout(); refreshUser(); }}
+        onLogout={() => { supabase.logout(); }}
       >
         <Routes>
           <Route path="/" element={<Home />} />

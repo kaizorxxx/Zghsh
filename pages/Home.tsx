@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { getHome, search, getBatch } from '../services/api';
-import { supabase } from '../services/supabase';
+import { firebaseService as supabase } from '../services/firebase';
 import { getAiSuggestions } from '../services/gemini';
 import { AnimeItem } from '../types';
 import AnimeCard from '../components/DramaCard';
