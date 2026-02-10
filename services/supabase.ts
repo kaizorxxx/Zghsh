@@ -1,7 +1,15 @@
 
+import { createClient } from '@supabase/supabase-js';
 import { UserProfile, AdConfig, SiteStats } from '../types';
 import { MOCK_USER, INITIAL_AD_CONFIG } from '../constants';
 
+// --- REAL SUPABASE CONFIGURATION ---
+export const SUPABASE_URL = 'https://jvwwazeuxmisehplhmtl.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2d3dhemV1eG1pc2VocGxobXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODM2NjUsImV4cCI6MjA4NDA1OTY2NX0.72ydk1kZOO_WnQthfHKyuFZHJwmxk0Zi4kOWjkYLzy0';
+
+export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- MOCK SERVICE (Maintains compatibility with existing UI) ---
 class SupabaseService {
   private userKey = 'nova_anime_current_user';
   private usersDbKey = 'nova_anime_users_db';
