@@ -16,18 +16,18 @@ const BASE_URL = 'https://rgsordertracking.com/animekompi/endpoints';
 
 // --- MOCK DATA GENERATORS (Fallback System) ---
 
-// Using placehold.co for reliable loading instead of picsum (which often times out)
+// We use UI Avatars because it's fast and reliable for text-based placeholders
 const getMockImage = (text: string, seed: number) => 
-    `https://placehold.co/300x450/09090b/ef4444?text=${encodeURIComponent(text)}+${seed}`;
+    `https://ui-avatars.com/api/?name=${text}&background=random&size=400&length=1`;
 
 const getMockDetailImage = (text: string) => 
-    `https://placehold.co/600x800/09090b/ef4444?text=${encodeURIComponent(text)}`;
+    `https://ui-avatars.com/api/?name=${text}&background=random&size=600&length=1`;
 
 const getMockAnimeItem = (i: number): AnimeItem => ({
     slug: `cyber-drama-${i}`,
     title: `Neon Dynasty: Chronicles ${i}`,
-    thumbnail: getMockImage('NeonDynasty', i),
-    image: getMockImage('NeonDynasty', i),
+    thumbnail: getMockImage('ND', i),
+    image: getMockImage('ND', i),
     type: 'TV',
     latest_episode: `${12 + i}`,
     episode: `${12 + i}`,
@@ -76,7 +76,7 @@ const getMockWatchData = () => ({
 });
 
 function getMockResponse<T>(endpoint: string, params?: Record<string, string>): any {
-    console.warn(`[System] Connection Failed. Switching to Neural Backup for: ${endpoint}`);
+    // console.warn(`[System] Connection Failed. Switching to Neural Backup for: ${endpoint}`);
     
     if (endpoint.includes('/home.php') || endpoint.includes('/batch.php') || endpoint.includes('/search.php')) {
         return {

@@ -34,6 +34,7 @@ import {
 import { UserProfile, AdConfig, SiteStats, Comment } from '../types';
 import { INITIAL_AD_CONFIG } from '../constants';
 
+// --- CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyAPul6-iroL_DdRnDmLehKX5YYjbh7pPeo",
   authDomain: "salma-c5850.firebaseapp.com",
@@ -46,33 +47,47 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Firestore with settings to avoid hanging on offline
+// Initialize Firestore with generous settings
 const db = initializeFirestore(app, {
    cacheSizeBytes: CACHE_SIZE_UNLIMITED
 });
 
-// Attempt to enable offline persistence (silently fail if not supported/already enabled)
+// Attempt persistence but don't block app on failure
 enableIndexedDbPersistence(db).catch((err) => {
-    console.log("Persistence disabled:", err.code);
+    // Silent fail is okay, we will fall back to localStorage
+    console.debug("Persistence note:", err.code);
 });
 
 const CACHE_KEY = 'nova_firebase_user_cache';
+const MOCK_DB_KEY = 'nova_offline_db_comments';
 
-// Helper for safe JSON storage to prevent "Converting circular structure to JSON"
+// --- UTILS ---
+
+// Safe Storage to prevent circular errors
 const safeSetItem = (key: string, value: any) => {
     try {
         const stringified = JSON.stringify(value, (k, v) => {
-            // Filter out circular references or DOM nodes if they accidentally got in
             if (v instanceof Element || v instanceof Event) return null;
             return v;
         });
         localStorage.setItem(key, stringified);
     } catch (e) {
-        console.warn(`Failed to save ${key} to localStorage:`, e);
+        console.warn(`Local Storage Full or Error: ${key}`);
+    }
+};
+
+const safeGetItem = <T>(key: string): T | null => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : null;
+    } catch (e) {
+        return null;
     }
 };
 
 class FirebaseService {
+  private isOfflineMode = false;
+
   constructor() {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -80,7 +95,7 @@ class FirebaseService {
             const profile = await this.fetchUserProfile(user);
             safeSetItem(CACHE_KEY, profile);
         } catch (e) {
-            console.warn("Using offline fallback for user profile");
+            console.warn("Using offline fallback profile");
         }
       } else {
         localStorage.removeItem(CACHE_KEY);
@@ -88,81 +103,84 @@ class FirebaseService {
     });
   }
 
-  // --- Helpers ---
+  // --- DATA FETCHING WITH FALLBACK ---
 
   private async fetchUserProfile(user: User): Promise<UserProfile> {
+    // 1. Try to fetch from Firestore
     try {
-        // Create a timeout promise to prevent hanging indefinitely
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+        // Fast timeout to detect offline/blocked state quickly
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000));
         const docRef = doc(db, 'users', user.uid);
-        
-        // Race against timeout
         const docSnap: any = await Promise.race([getDoc(docRef), timeout]);
 
         if (docSnap && docSnap.exists()) {
           const data = docSnap.data();
-          return {
-            id: user.uid,
-            email: user.email || '',
-            username: data.username || user.displayName || 'User',
-            avatar: data.avatar || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-            bio: data.bio || 'New member of NovaDrama',
-            is_vip: data.is_vip || false,
-            is_verified: user.emailVerified,
-            phoneNumber: data.phoneNumber || '',
-            history: data.history || [],
-            favorites: data.favorites || [],
-            ratings: data.ratings || {}
-          };
+          return this.formatProfile(user, data);
         } else if (docSnap) {
-           // Doc doesn't exist, create it (fire and forget to avoid blocking)
-           const newProfile: UserProfile = {
-            id: user.uid,
-            email: user.email || '',
-            username: user.displayName || 'User',
-            avatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-            bio: 'New member of NovaDrama',
-            is_vip: false,
-            is_verified: user.emailVerified,
-            history: [],
-            favorites: [],
-            ratings: {}
-          };
-          setDoc(docRef, newProfile).catch(e => console.warn("Failed to create profile doc", e));
-          return newProfile;
+           // Create new doc if it doesn't exist
+           const newProfile = this.createDefaultProfile(user);
+           setDoc(docRef, newProfile).catch(() => this.isOfflineMode = true);
+           return newProfile;
         }
-    } catch (e) {
-        console.warn("Firestore unreachable, returning partial profile from Auth");
+    } catch (e: any) {
+        // Handle Permission Denied (Project not set up) or Connection Failed
+        if (e.message?.includes("permission-denied") || e.code === 'permission-denied' || e.message === "Timeout") {
+            this.isOfflineMode = true;
+            console.warn("Switching to Offline Hybrid Mode (Firestore Unreachable)");
+        }
     }
 
-    // Fallback if Firestore fails/times out
-    return {
+    // 2. Fallback: Return cached or default based on Auth data
+    const cached = safeGetItem<UserProfile>(CACHE_KEY);
+    if (cached && cached.id === user.uid) return cached;
+
+    return this.createDefaultProfile(user);
+  }
+
+  private createDefaultProfile(user: User): UserProfile {
+      return {
         id: user.uid,
         email: user.email || '',
-        username: user.displayName || 'Offline User',
+        username: user.displayName || 'User',
         avatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-        bio: 'Offline Mode',
+        bio: 'New member of NovaDrama',
         is_vip: false,
         is_verified: user.emailVerified,
+        phoneNumber: '',
         history: [],
         favorites: [],
         ratings: {}
-    };
+      };
+  }
+
+  private formatProfile(user: User, data: any): UserProfile {
+      return {
+        id: user.uid,
+        email: user.email || '',
+        username: data.username || user.displayName || 'User',
+        avatar: data.avatar || user.photoURL,
+        bio: data.bio || '',
+        is_vip: data.is_vip || false,
+        is_verified: user.emailVerified,
+        phoneNumber: data.phoneNumber || '',
+        history: data.history || [],
+        favorites: data.favorites || [],
+        ratings: data.ratings || {}
+      };
   }
 
   getProfile(): UserProfile | null {
-    const cached = localStorage.getItem(CACHE_KEY);
-    return cached ? JSON.parse(cached) : null;
+    return safeGetItem(CACHE_KEY);
   }
 
   onAuthChange(callback: (user: UserProfile | null) => void) {
     return onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Return cached immediately for speed
         const cached = this.getProfile();
+        // Optimistic UI: show cached immediately
         if (cached && cached.id === user.uid) callback(cached);
         
-        // Then fetch fresh
+        // Then try to sync
         const profile = await this.fetchUserProfile(user);
         callback(profile);
       } else {
@@ -194,10 +212,11 @@ class FirebaseService {
         photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.username}`
       });
 
-      await sendEmailVerification(user);
+      // Try to verify, but don't fail registration if it errors
+      try { await sendEmailVerification(user); } catch(e) {}
 
-      // Fire and forget Firestore creation to avoid blocking UI if offline
-      setDoc(doc(db, 'users', user.uid), {
+      // Try to create profile in DB, but don't block
+      const newProfile = {
         username: data.username,
         email: data.email,
         phoneNumber: data.phoneNumber,
@@ -207,7 +226,12 @@ class FirebaseService {
         history: [],
         favorites: [],
         ratings: {}
-      }).catch(e => console.warn("Offline: Profile queued for sync"));
+      };
+      
+      setDoc(doc(db, 'users', user.uid), newProfile).catch(() => {
+          // If Firestore fails, just cache locally
+          safeSetItem(CACHE_KEY, { ...newProfile, id: user.uid, is_verified: false });
+      });
 
       return { success: true, message: 'Registration successful.' };
     } catch (error: any) {
@@ -254,29 +278,30 @@ class FirebaseService {
       return { success: false, message: 'User not logged in' };
     } catch (error: any) {
       if (error.code === 'auth/requires-recent-login') {
-         return { success: false, message: 'Keamanan: Silakan logout dan login kembali sebelum mengganti password.' };
+         return { success: false, message: 'Security: Please logout and login again to change password.' };
       }
       return { success: false, message: error.message };
     }
   }
 
-  // --- Data Management ---
+  // --- Data Management (Hybrid: Online -> Local Fallback) ---
 
   async updateProfile(updates: Partial<UserProfile>) {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Optimistic Update
+    // 1. Optimistic Local Update
     const current = this.getProfile();
     if (current) {
         safeSetItem(CACHE_KEY, { ...current, ...updates });
     }
 
+    // 2. Try Remote Update
     try {
         const docRef = doc(db, 'users', user.uid);
         await updateDoc(docRef, updates);
     } catch (e) {
-        console.warn("Profile update saved locally (offline mode)");
+        // Ignore remote error in offline mode
     }
   }
 
@@ -297,41 +322,51 @@ class FirebaseService {
     await this.updateProfile({ history: newHistory });
   }
 
-  // --- Comments & Ratings ---
+  // --- Comments & Ratings (Mock Mode Compatible) ---
 
   async addComment(animeSlug: string, content: string): Promise<void> {
     const user = this.getProfile();
     if (!user) throw new Error("Must be logged in");
 
+    const newComment: Comment = {
+       id: `cmt_${Date.now()}`,
+       animeSlug,
+       userId: user.id,
+       username: user.username,
+       avatar: user.avatar,
+       content,
+       timestamp: Date.now(),
+       replies: []
+    };
+
+    // Try Remote
     try {
-        await addDoc(collection(db, 'comments'), {
-            animeSlug,
-            userId: user.id,
-            username: user.username,
-            avatar: user.avatar,
-            content,
-            timestamp: Date.now(),
-            replies: []
-        });
+        await addDoc(collection(db, 'comments'), newComment);
     } catch (e) {
-        console.error("Failed to post comment", e);
+        // Fallback: Local Mock DB
+        const localComments = safeGetItem<Comment[]>(MOCK_DB_KEY) || [];
+        localComments.push(newComment);
+        safeSetItem(MOCK_DB_KEY, localComments);
     }
   }
 
   async getComments(animeSlug: string): Promise<Comment[]> {
+    // Try Remote
     try {
         const q = query(
             collection(db, 'comments'), 
             where('animeSlug', '==', animeSlug),
             orderBy('timestamp', 'desc')
         );
-        // Timeout protection for comments too
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000));
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2000));
         const snapshot: any = await Promise.race([getDocs(q), timeout]);
-        
         return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Comment));
     } catch (e) {
-        return []; // Return empty if offline/timeout
+        // Fallback: Local Mock DB
+        const localComments = safeGetItem<Comment[]>(MOCK_DB_KEY) || [];
+        return localComments
+            .filter(c => c.animeSlug === animeSlug)
+            .sort((a, b) => b.timestamp - a.timestamp);
     }
   }
 
@@ -350,23 +385,27 @@ class FirebaseService {
 
     try {
         const commentRef = doc(db, 'comments', commentId);
-        await updateDoc(commentRef, {
-           replies: arrayUnion(reply)
-        });
+        await updateDoc(commentRef, { replies: arrayUnion(reply) });
     } catch(e) {
-        console.warn("Failed to reply");
+        // Fallback Local
+        const localComments = safeGetItem<Comment[]>(MOCK_DB_KEY) || [];
+        const idx = localComments.findIndex(c => c.id === commentId);
+        if (idx !== -1) {
+            if (!localComments[idx].replies) localComments[idx].replies = [];
+            localComments[idx].replies.push(reply);
+            safeSetItem(MOCK_DB_KEY, localComments);
+        }
     }
   }
 
   async rateAnime(animeSlug: string, rating: number): Promise<void> {
      const profile = this.getProfile();
      if (!profile) return;
-
      const newRatings = { ...(profile.ratings || {}), [animeSlug]: rating };
      await this.updateProfile({ ratings: newRatings });
   }
 
-  // --- Admin (Settings) ---
+  // --- Admin ---
 
   getAds(): AdConfig {
     const data = localStorage.getItem('nova_ads_config');
