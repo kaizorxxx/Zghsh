@@ -16,11 +16,18 @@ const BASE_URL = 'https://rgsordertracking.com/animekompi/endpoints';
 
 // --- MOCK DATA GENERATORS (Fallback System) ---
 
+// Using placehold.co for reliable loading instead of picsum (which often times out)
+const getMockImage = (text: string, seed: number) => 
+    `https://placehold.co/300x450/09090b/ef4444?text=${encodeURIComponent(text)}+${seed}`;
+
+const getMockDetailImage = (text: string) => 
+    `https://placehold.co/600x800/09090b/ef4444?text=${encodeURIComponent(text)}`;
+
 const getMockAnimeItem = (i: number): AnimeItem => ({
     slug: `cyber-drama-${i}`,
     title: `Neon Dynasty: Chronicles ${i}`,
-    thumbnail: `https://picsum.photos/seed/cyber${i}/300/450`,
-    image: `https://picsum.photos/seed/cyber${i}/300/450`,
+    thumbnail: getMockImage('NeonDynasty', i),
+    image: getMockImage('NeonDynasty', i),
     type: 'TV',
     latest_episode: `${12 + i}`,
     episode: `${12 + i}`,
@@ -29,7 +36,7 @@ const getMockAnimeItem = (i: number): AnimeItem => ({
 
 const getMockDetail = (slug: string): AnimeDetail => ({
     title: slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    thumbnail: `https://picsum.photos/seed/${slug}/600/800`,
+    thumbnail: getMockDetailImage(slug),
     synopsis: "Signal intercepted. The primary database connection was severed, but this cached neural fragment remains. In a world where data is currency, this drama explores the depths of the digital void.",
     info: {
         status: "Ongoing",

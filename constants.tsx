@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Anime } from './types';
+import { AnimeItem } from './types';
 
 export const THEME_COLORS = {
   primary: '#22d3ee', // Cyan 400
@@ -36,6 +35,6 @@ export const INITIAL_AD_CONFIG = {
   popunderLink: 'https://google.com', // Placeholder for ad redirect
 };
 
-export const FALLBACK_ANIME: Anime[] = [
+export const FALLBACK_ANIME: AnimeItem[] = [
   // ... existing fallback data if needed, omitted for brevity as it wasn't changed logically
 ];

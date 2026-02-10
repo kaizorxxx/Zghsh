@@ -12,14 +12,14 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
-  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ 
       username: '', 
       bio: '', 
       avatar: '',
-      currentPassword: '',
-      newPassword: '' 
+      newPassword: '',
+      confirmNewPassword: ''
   });
+  const [loadingSave, setLoadingSave] = useState(false);
   
   // History Data
   const [historyItems, setHistoryItems] = useState<AnimeDetail[]>([]);
@@ -27,13 +27,12 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
 
   useEffect(() => {
     if (user) {
-        setFormData({
+        setFormData(prev => ({
+            ...prev,
             username: user.username,
             bio: user.bio,
-            avatar: user.avatar,
-            currentPassword: '',
-            newPassword: ''
-        });
+            avatar: user.avatar
+        }));
 
         // Load history details
         const loadHistory = async () => {
@@ -57,20 +56,36 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
       return <div className="text-center py-20 text-white">Silakan Login Terlebih Dahulu.</div>;
   }
 
-  const handleSaveProfile = () => {
-      supabase.updateProfile({
-          username: formData.username,
-          bio: formData.bio,
-          avatar: formData.avatar
-      });
-      setIsEditing(false);
-      onUpdate();
+  const handleSaveProfile = async () => {
+      setLoadingSave(true);
+      try {
+        await supabase.updateProfile({
+            username: formData.username,
+            bio: formData.bio,
+            avatar: formData.avatar
+        });
+        alert("Profil berhasil diperbarui!");
+        onUpdate();
+      } catch(e) {
+          alert("Gagal memperbarui profil.");
+      } finally {
+          setLoadingSave(false);
+      }
   };
 
-  const handleChangePassword = () => {
-      // Firebase doesn't expose user password for security.
-      // Re-authentication would be needed here for a real flow.
-      alert("Untuk keamanan, silakan gunakan fitur 'Lupa Password' di layar login atau update via provider email.");
+  const handleChangePassword = async () => {
+      if (!formData.newPassword) return;
+      if (formData.newPassword !== formData.confirmNewPassword) {
+          alert("Password baru tidak cocok.");
+          return;
+      }
+      setLoadingSave(true);
+      const res = await supabase.changePassword(formData.newPassword);
+      setLoadingSave(false);
+      alert(res.message);
+      if (res.success) {
+          setFormData(prev => ({ ...prev, newPassword: '', confirmNewPassword: '' }));
+      }
   };
 
   return (
@@ -127,11 +142,11 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
                         <h3 className="font-orbitron font-bold text-white uppercase tracking-wider">Statistik Akun</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-zinc-900/50 p-4 rounded-xl text-center">
-                                <p className="text-2xl font-black text-white">{user.favorites.length}</p>
+                                <p className="text-2xl font-black text-white">{user.favorites?.length || 0}</p>
                                 <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Favorit</p>
                             </div>
                             <div className="bg-zinc-900/50 p-4 rounded-xl text-center">
-                                <p className="text-2xl font-black text-white">{user.history.length}</p>
+                                <p className="text-2xl font-black text-white">{user.history?.length || 0}</p>
                                 <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Ditonton</p>
                             </div>
                         </div>
@@ -151,7 +166,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
                         ) : historyItems.length > 0 ? (
                             <div className="space-y-4">
                                 {historyItems.map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-2xl hover:bg-zinc-900/80 transition-all group cursor-pointer border border-transparent hover:border-red-600/20">
+                                    <Link to={`/drama/${item.episodes[0].slug}`} key={idx} className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-2xl hover:bg-zinc-900/80 transition-all group cursor-pointer border border-transparent hover:border-red-600/20">
                                         <img src={item.thumbnail} className="w-16 h-16 rounded-xl object-cover" />
                                         <div className="flex-grow">
                                             <h4 className="text-white font-bold text-sm truncate group-hover:text-red-500 transition-colors">{item.title}</h4>
@@ -164,7 +179,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
                                         <button className="px-4 py-2 bg-white text-black text-[10px] font-black rounded-lg uppercase tracking-wider hover:bg-red-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
                                             Lanjut
                                         </button>
-                                    </div>
+                                    </Link>
                                 ))}
                             </div>
                         ) : (
@@ -205,17 +220,34 @@ const Profile: React.FC<ProfileProps> = ({ user, onUpdate }) => {
                                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-600 outline-none text-xs"
                                     />
                                 </div>
-                                <button onClick={handleSaveProfile} className="w-full bg-white text-black font-black uppercase tracking-widest py-3 rounded-xl hover:bg-zinc-200 transition-colors">
+                                <button onClick={handleSaveProfile} disabled={loadingSave} className="w-full bg-white text-black font-black uppercase tracking-widest py-3 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50">
                                     Simpan Perubahan
                                 </button>
                            </div>
                       </div>
 
-                      {/* Change Password Form (Disabled for Social Login/Basic implementation safety) */}
-                      <div className="glass p-8 rounded-[2rem] border-white/5 space-y-6 opacity-50 pointer-events-none grayscale">
-                           <h3 className="font-orbitron font-bold text-white uppercase tracking-wider mb-2">Ganti Password (Disabled)</h3>
+                      {/* Change Password Form */}
+                      <div className="glass p-8 rounded-[2rem] border-white/5 space-y-6">
+                           <h3 className="font-orbitron font-bold text-white uppercase tracking-wider mb-2">Ganti Password</h3>
                            <div className="space-y-4">
-                               <p className="text-xs text-zinc-400">Pengaturan keamanan dikelola oleh penyedia autentikasi (Google/GitHub/Email).</p>
+                                <p className="text-xs text-zinc-400 mb-2">Jika login via Google/GitHub, password tidak dapat diubah di sini.</p>
+                                <input 
+                                    type="password"
+                                    placeholder="Password Baru"
+                                    value={formData.newPassword}
+                                    onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
+                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-600 outline-none"
+                                />
+                                <input 
+                                    type="password"
+                                    placeholder="Konfirmasi Password Baru"
+                                    value={formData.confirmNewPassword}
+                                    onChange={(e) => setFormData({...formData, confirmNewPassword: e.target.value})}
+                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-600 outline-none"
+                                />
+                                <button onClick={handleChangePassword} disabled={loadingSave} className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest py-3 rounded-xl transition-colors disabled:opacity-50">
+                                    Update Password
+                                </button>
                            </div>
                       </div>
                   </div>

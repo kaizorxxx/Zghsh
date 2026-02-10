@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import { UserProfile, AdConfig } from '../types';
 
@@ -12,10 +12,56 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, user, adConfig, onOpenAuth, onLogout }) => {
+  const [showCustomPopup, setShowCustomPopup] = useState(false);
+
+  useEffect(() => {
+    // Show custom popup if enabled and not closed in session
+    if (adConfig.customPopupEnabled && adConfig.customPopupImage) {
+        const hasSeen = sessionStorage.getItem('seen_custom_popup');
+        if (!hasSeen) {
+            // Delay slightly for effect
+            const timer = setTimeout(() => setShowCustomPopup(true), 2000);
+            return () => clearTimeout(timer);
+        }
+    }
+  }, [adConfig]);
+
+  const closePopup = () => {
+      setShowCustomPopup(false);
+      sessionStorage.setItem('seen_custom_popup', 'true');
+  };
+
+  const handlePopupClick = () => {
+      if (adConfig.customPopupUrl) {
+          window.open(adConfig.customPopupUrl, '_blank');
+      }
+      closePopup();
+  };
+
   return (
     <div className="min-h-screen bg-black flex flex-col overflow-x-hidden">
       <Header user={user} onOpenAuth={onOpenAuth} onLogout={onLogout} />
       
+      {/* GLOBAL CUSTOM POPUP */}
+      {showCustomPopup && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+              <div className="relative max-w-lg w-full">
+                  <button 
+                    onClick={closePopup}
+                    className="absolute -top-4 -right-4 w-8 h-8 bg-red-600 rounded-full text-white font-bold flex items-center justify-center shadow-lg z-10"
+                  >
+                      ✕
+                  </button>
+                  <div 
+                    onClick={handlePopupClick}
+                    className="cursor-pointer rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(255,255,255,0.1)] border border-white/10"
+                  >
+                      <img src={adConfig.customPopupImage} className="w-full h-auto" alt="Promo" />
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Top Banner Ad */}
       {adConfig.enabled && adConfig.showTopBanner && (
         <div className="w-full bg-zinc-900/50 h-24 hidden md:flex items-center justify-center border-b border-white/5 relative group cursor-pointer overflow-hidden">

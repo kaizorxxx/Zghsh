@@ -6,13 +6,14 @@ export interface UserProfile {
   username: string;
   email: string;
   phoneNumber?: string;
-  password?: string;
+  password?: string; // Only for local mock, not stored in real app state usually
   avatar: string;
   bio: string;
   is_vip: boolean;
   is_verified?: boolean;
   history: string[]; // Anime IDs/Slugs
   favorites: string[]; // Anime IDs/Slugs
+  ratings?: Record<string, number>; // { 'slug': 5 }
 }
 
 export interface AdConfig {
@@ -25,6 +26,14 @@ export interface AdConfig {
   interstitialId: string;
   inPagePushId: string;
   popunderLink: string;
+  
+  // New Features
+  directLinkEnabled: boolean;
+  directLinkUrl: string; // URL to open when clicking video overlay
+  
+  customPopupEnabled: boolean;
+  customPopupImage: string;
+  customPopupUrl: string;
 }
 
 export interface SiteStats {
@@ -34,28 +43,24 @@ export interface SiteStats {
   visitorsHistory: number[]; // For graph
 }
 
-export interface StorageHealth {
-  quota: number;
-  usage: number;
-  percentUsed: number;
+export interface Comment {
+  id: string;
+  animeSlug: string;
+  userId: string;
+  username: string;
+  avatar: string;
+  content: string;
+  timestamp: number;
+  replies: Reply[];
 }
 
-export interface Anime {
+export interface Reply {
   id: string;
-  title: string;
-  thumbnail: string;
-  description: string;
-  rating: number;
-  episodes: number;
-  genre: string[];
-  releaseYear: number;
-  status: string;
-  source: string;
-  seasons?: {
-    number: number;
-    name: string;
-    episodeCount: number;
-  }[];
+  userId: string;
+  username: string;
+  avatar: string;
+  content: string;
+  timestamp: number;
 }
 
 // --- New API Types ---

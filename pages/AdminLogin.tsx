@@ -10,8 +10,7 @@ const AdminLogin: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Hardcoded for demo purposes as requested
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'kaizo' && password === '040411') {
         navigate('/admin');
     } else {
         setError('ACCESS DENIED: Invalid Credentials');
@@ -47,7 +46,7 @@ const AdminLogin: React.FC = () => {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white font-mono focus:border-red-600 outline-none transition-all"
-                        placeholder="usr_admin"
+                        placeholder="username"
                     />
                 </div>
                 <div className="space-y-2">

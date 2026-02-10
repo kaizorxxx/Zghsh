@@ -9,23 +9,38 @@ interface DramaCardProps {
 
 const DramaCard: React.FC<DramaCardProps> = ({ drama }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
-  // Normalize data fields from the new API
-  const imageUrl = drama.image || drama.thumbnail || 'https://placehold.co/600x800/000/fff?text=NO_SIGNAL';
+  // Use a reliable fallback generator if the primary image fails
+  const fallbackImage = `https://placehold.co/300x450/18181b/e11d48?text=${encodeURIComponent(drama.title.substring(0,20))}`;
+  
+  // Prioritize drama.image, then thumbnail, then fallback
+  const initialImage = drama.image || drama.thumbnail || fallbackImage;
+  const [currentSrc, setCurrentSrc] = useState(initialImage);
+
+  const handleError = () => {
+      if (!hasError) {
+          setHasError(true);
+          setCurrentSrc(fallbackImage);
+      }
+  };
+
   const episodeDisplay = drama.episode || drama.latest_episode || '?';
   
   return (
     <Link to={`/drama/${drama.slug}`} className="group block mb-2">
       <div className="relative aspect-[12/17] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 group-hover:border-red-600 transition-all duration-500 group-hover:shadow-[0_0_30px_rgba(225,29,72,0.3)] group-hover:-translate-y-2">
         {/* Placeholder/Loading shimmer */}
-        {!imageLoaded && (
-            <div className="absolute inset-0 shimmer bg-zinc-800"></div>
+        {!imageLoaded && !hasError && (
+            <div className="absolute inset-0 shimmer bg-zinc-800 z-10"></div>
         )}
         
         <img 
-          src={imageUrl} 
+          src={currentSrc} 
           alt={drama.title} 
+          loading="lazy"
           onLoad={() => setImageLoaded(true)}
+          onError={handleError}
           className={`w-full h-full object-cover transition-all duration-1000 ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'} group-hover:scale-110`}
         />
         

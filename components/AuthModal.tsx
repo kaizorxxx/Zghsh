@@ -10,7 +10,7 @@ interface AuthModalProps {
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, initialMode = 'login' }) => {
-  const [mode, setMode] = useState<'login' | 'signup' | 'verify'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'signup' | 'verify' | 'success_reg'>(initialMode);
   const [form, setForm] = useState({
     username: '',
     email: '',
@@ -21,7 +21,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false);
 
   if (!isOpen) return null;
 
@@ -57,7 +56,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
       if (mode === 'login') {
         const res = await supabase.login(form.email, form.password);
         if (res.success) {
-          // Check if verified
           const isVerified = await supabase.verifyUser();
           if (!isVerified) {
              setMode('verify');
@@ -89,15 +87,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
         });
 
         if (res.success) {
-            setVerificationSent(true);
-            setMode('verify');
+            setMode('success_reg'); // Show Instant Confirmation
         } else {
             setError(res.message);
         }
       } 
       else if (mode === 'verify') {
-        // In Firebase Web, we can't manually verify a code without backend.
-        // We check if the user clicked the link.
         const verified = await supabase.verifyUser();
         if (verified) {
             onLoginSuccess();
@@ -130,7 +125,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
 
         <div className="relative z-10">
           <h2 className="text-2xl font-black font-orbitron text-white text-center mb-6 uppercase tracking-wider">
-            {mode === 'login' ? 'Akses Sistem' : mode === 'signup' ? 'Daftar Anggota' : 'Verifikasi Email'}
+            {mode === 'login' ? 'Akses Sistem' : mode === 'signup' ? 'Daftar Anggota' : mode === 'success_reg' ? 'Akun Dibuat' : 'Verifikasi Email'}
           </h2>
 
           {error && (
@@ -140,7 +135,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'verify' ? (
+            {mode === 'success_reg' ? (
+                <div className="text-center space-y-6 animate-fadeIn">
+                     <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(34,197,94,0.5)]">
+                        <svg className="w-10 h-10 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                     </div>
+                     <div className="space-y-2">
+                         <h3 className="text-xl font-bold text-white">Registrasi Berhasil!</h3>
+                         <p className="text-sm text-zinc-400">Akun Anda telah dibuat. Langkah terakhir: Verifikasi email Anda.</p>
+                     </div>
+                     <button 
+                        type="button"
+                        onClick={() => setMode('verify')}
+                        className="w-full bg-white text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-zinc-200 transition-colors"
+                     >
+                        Lanjutkan Verifikasi
+                     </button>
+                </div>
+            ) : mode === 'verify' ? (
                 <div className="space-y-4 text-center">
                     <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto text-blue-400">
                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -249,7 +261,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
                 </>
             )}
 
-            {mode !== 'verify' && (
+            {mode !== 'verify' && mode !== 'success_reg' && (
                 <button 
                     type="submit"
                     disabled={loading}
@@ -260,7 +272,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, 
             )}
           </form>
 
-          {mode !== 'verify' && (
+          {mode !== 'verify' && mode !== 'success_reg' && (
             <div className="mt-6 text-center text-xs">
                 <p className="text-zinc-500">
                     {mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? '}
